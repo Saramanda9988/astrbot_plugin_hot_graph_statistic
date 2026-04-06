@@ -1,0 +1,48 @@
+{
+  "db_path": {
+    "type": "string",
+    "description": "SQLite 数据库路径",
+    "default": "data/hot_graph.db"
+  },
+  "render_dir": {
+    "type": "string",
+    "description": "热力图临时图片输出目录",
+    "default": "data/hot_graph/render"
+  },
+  "timezone": {
+    "type": "string",
+    "description": "统计使用的时区",
+    "default": "Asia/Shanghai"
+  },
+  "history_days": {
+    "type": "int",
+    "description": "展示和初次同步的历史天数",
+    "default": 365
+  },
+  "aggregate_interval_seconds": {
+    "type": "int",
+    "description": "后台正式同步周期（秒）",
+    "default": 300
+  },
+  "history_page_size": {
+    "type": "int",
+    "description": "每次读取宿主历史消息的分页大小",
+    "default": 200
+  },
+  "history_source_type": {
+    "type": "string",
+    "description": "历史消息来源类型",
+    "default": "context_history",
+    "options": ["context_history", "mock_json", "disabled"]
+  },
+  "mock_history_path": {
+    "type": "string",
+    "description": "当 history_source_type=mock_json 时使用的 JSON 文件路径",
+    "default": ""
+  },
+  "enable_background_sync": {
+    "type": "bool",
+    "description": "是否启用后台定时正式同步",
+    "default": true
+  }
+}
