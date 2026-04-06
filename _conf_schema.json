@@ -32,7 +32,8 @@
   "history_source_type": {
     "type": "string",
     "description": "历史消息来源类型",
-    "default": "context_history",
+    "hint": "默认禁用；只有在确认宿主已保存并可读取群消息历史时，才改为 context_history。",
+    "default": "disabled",
     "options": ["context_history", "mock_json", "disabled"]
   },
   "mock_history_path": {

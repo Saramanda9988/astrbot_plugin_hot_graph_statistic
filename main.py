@@ -19,7 +19,7 @@ from hot_graph import (
 from hot_graph.utils import format_summary
 
 
-@register("astrbot_hot_graph", "rain", "群热力图统计插件", "0.1.0")
+@register("astrbot_hot_graph", "LunaRain_079", "群热力图统计插件", "0.1.0")
 class HotGraphPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -46,6 +46,7 @@ class HotGraphPlugin(Star):
         await self.scheduler.stop()
 
     @filter.command("registerme")
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def registerme(self, event: AstrMessageEvent):
         """注册当前用户在当前群聊中的热力图统计。"""
         platform_id, group_id, user_id, display_name = self._extract_event_scope(event)
@@ -65,6 +66,7 @@ class HotGraphPlugin(Star):
         yield event.plain_result("你已经在本群注册过了。")
 
     @filter.command("showme")
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def showme(self, event: AstrMessageEvent):
         """查看自己在当前群内的正式热力图统计。"""
         platform_id, group_id, user_id, display_name = self._extract_event_scope(event)
@@ -104,6 +106,7 @@ class HotGraphPlugin(Star):
         yield event.image_result(str(image_path))
 
     @filter.command("updateme")
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def updateme(self, event: AstrMessageEvent):
         """临时拉取增量消息并预览热力图，不写入正式统计。"""
         platform_id, group_id, user_id, display_name = self._extract_event_scope(event)

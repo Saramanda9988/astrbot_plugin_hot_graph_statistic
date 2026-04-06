@@ -124,15 +124,6 @@ def build_history_fetcher(settings: PluginSettings, context: Any | None = None) 
         if manager is not None:
             return ContextHistoryFetcher(manager)
 
-    if source_type == "disabled":
-        return DisabledHistoryFetcher()
-
-    if settings.mock_history_path is not None and settings.mock_history_path.exists():
-        return MockJsonHistoryFetcher(settings.mock_history_path)
-
-    if context is not None and getattr(context, "message_history_manager", None) is not None:
-        return ContextHistoryFetcher(context.message_history_manager)
-
     return DisabledHistoryFetcher()
 
 
