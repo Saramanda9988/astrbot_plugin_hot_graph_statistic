@@ -9,6 +9,8 @@ from .models import ActivitySnapshot, HeatmapSummary, RegisteredUser, SyncResult
 from .repository import HotGraphRepository
 from .utils import date_window, local_date, utc_now
 
+CONTRIBUTION_MESSAGE_COUNT = 5
+
 
 class HotGraphService:
     def __init__(
@@ -100,19 +102,21 @@ class HotGraphService:
             )
         now = now or utc_now()
         start_date, end_date = date_window(now, self.settings.timezone, self.settings.history_days)
-        counts = self.repository.load_daily_counts(
+        raw_counts = self.repository.load_daily_counts(
             platform_id=registration.platform_id,
             group_id=registration.group_id,
             user_id=registration.user_id,
             start_date=start_date,
             end_date=end_date,
         )
+        contribution_counts = self._to_contribution_counts(raw_counts)
         return ActivitySnapshot(
             registration=registration,
-            counts_by_date=counts,
-            summary=self._summarize_counts(counts, start_date, end_date),
+            counts_by_date=contribution_counts,
+            summary=self._summarize_counts(contribution_counts, start_date, end_date),
             is_preview=False,
             generated_at=now,
+            note=f"统计口径：每 {CONTRIBUTION_MESSAGE_COUNT} 条消息记 1 次贡献。",
         )
 
     async def get_preview_snapshot(
@@ -124,14 +128,29 @@ class HotGraphService:
         display_name: str | None = None,
         now=None,
     ) -> ActivitySnapshot:
-        formal = await self.get_formal_snapshot(
+        registration = self._require_registration(
             platform_id=platform_id,
             group_id=group_id,
             user_id=user_id,
-            display_name=display_name,
-            now=now,
         )
+        if display_name:
+            registration = RegisteredUser(
+                id=registration.id,
+                platform_id=registration.platform_id,
+                group_id=registration.group_id,
+                user_id=registration.user_id,
+                display_name=display_name,
+                registered_at=registration.registered_at,
+            )
         now = now or utc_now()
+        start_date, end_date = date_window(now, self.settings.timezone, self.settings.history_days)
+        formal_raw_counts = self.repository.load_daily_counts(
+            platform_id=registration.platform_id,
+            group_id=registration.group_id,
+            user_id=registration.user_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
         state = self.repository.get_sync_state(
             platform_id=platform_id,
             group_id=group_id,
@@ -148,16 +167,17 @@ class HotGraphService:
         )
         messages = await self.history_fetcher.fetch_messages(request)
         increment = self._aggregate_messages(messages)
-        merged = dict(formal.counts_by_date)
+        merged_raw = dict(formal_raw_counts)
         for stat_date, count in increment.items():
-            merged[stat_date] = merged.get(stat_date, 0) + count
-        note = "临时预览：本次结果未写入正式统计。"
+            merged_raw[stat_date] = merged_raw.get(stat_date, 0) + count
+        contribution_counts = self._to_contribution_counts(merged_raw)
+        note = f"临时预览：本次结果未写入正式统计。统计口径：每 {CONTRIBUTION_MESSAGE_COUNT} 条消息记 1 次贡献。"
         if not increment:
-            note = "临时预览：自上次正式同步以来没有新的有效消息。"
+            note = f"临时预览：自上次正式同步以来没有新的有效消息。统计口径：每 {CONTRIBUTION_MESSAGE_COUNT} 条消息记 1 次贡献。"
         return ActivitySnapshot(
-            registration=formal.registration,
-            counts_by_date=merged,
-            summary=self._summarize_counts(merged, formal.summary.range_start, formal.summary.range_end),
+            registration=registration,
+            counts_by_date=contribution_counts,
+            summary=self._summarize_counts(contribution_counts, start_date, end_date),
             is_preview=True,
             generated_at=now,
             note=note,
@@ -185,6 +205,13 @@ class HotGraphService:
             stat_date = local_date(message.occurred_at, self.settings.timezone)
             counts[stat_date] += 1
         return dict(counts)
+
+    @staticmethod
+    def _to_contribution_counts(raw_counts_by_date):
+        return {
+            stat_date: raw_count // CONTRIBUTION_MESSAGE_COUNT
+            for stat_date, raw_count in raw_counts_by_date.items()
+        }
 
     @staticmethod
     def _summarize_counts(counts_by_date, start_date, end_date) -> HeatmapSummary:

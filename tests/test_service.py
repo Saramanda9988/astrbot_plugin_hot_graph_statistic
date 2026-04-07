@@ -98,7 +98,23 @@ def test_sync_is_idempotent_and_preview_does_not_persist(tmp_path):
             "sender_id": "user-1",
             "sender_name": "Alice",
             "message_id": "m4",
-            "occurred_at": "2026-04-02T01:00:00+00:00",
+            "occurred_at": "2026-04-01T04:00:00+00:00",
+        },
+        {
+            "platform_id": "mock-platform",
+            "group_id": "group-1",
+            "sender_id": "user-1",
+            "sender_name": "Alice",
+            "message_id": "m5",
+            "occurred_at": "2026-04-01T06:00:00+00:00",
+        },
+        {
+            "platform_id": "mock-platform",
+            "group_id": "group-1",
+            "sender_id": "user-1",
+            "sender_name": "Alice",
+            "message_id": "m6",
+            "occurred_at": "2026-04-01T14:00:00+00:00",
         },
     ]
     service, _ = _build_service(tmp_path, history)
@@ -114,14 +130,14 @@ def test_sync_is_idempotent_and_preview_does_not_persist(tmp_path):
         sync_cutoff = datetime(2026, 4, 1, 12, 0, tzinfo=UTC)
         result_one = await service.sync_registration(registration=registration, now=sync_cutoff)
         assert result_one.applied is True
-        assert result_one.counts_applied == 2
+        assert result_one.counts_applied == 4
 
         formal_after_first_sync = await service.get_formal_snapshot(
             platform_id="mock-platform",
             group_id="group-1",
             user_id="user-1",
         )
-        assert formal_after_first_sync.summary.total_messages == 2
+        assert formal_after_first_sync.summary.total_messages == 0
 
         result_two = await service.sync_registration(
             registration=registration,
@@ -136,7 +152,7 @@ def test_sync_is_idempotent_and_preview_does_not_persist(tmp_path):
             user_id="user-1",
             now=datetime(2026, 4, 2, 12, 0, tzinfo=UTC),
         )
-        assert preview.summary.total_messages == 3
+        assert preview.summary.total_messages == 1
         assert preview.is_preview is True
         assert "未写入正式统计" in (preview.note or "")
 
@@ -146,7 +162,7 @@ def test_sync_is_idempotent_and_preview_does_not_persist(tmp_path):
             user_id="user-1",
             now=datetime(2026, 4, 2, 12, 0, tzinfo=UTC),
         )
-        assert formal_still_old.summary.total_messages == 2
+        assert formal_still_old.summary.total_messages == 0
 
         final_sync = await service.sync_registration(
             registration=registration,
@@ -160,6 +176,6 @@ def test_sync_is_idempotent_and_preview_does_not_persist(tmp_path):
             user_id="user-1",
             now=datetime(2026, 4, 2, 12, 0, tzinfo=UTC),
         )
-        assert formal_after_final_sync.summary.total_messages == 3
+        assert formal_after_final_sync.summary.total_messages == 1
 
     asyncio.run(scenario())

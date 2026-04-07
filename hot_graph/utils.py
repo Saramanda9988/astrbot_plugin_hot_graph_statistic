@@ -91,12 +91,12 @@ def format_summary(
         [
             f"{display_name} 的群聊热力图",
             f"统计范围：{range_start.isoformat()} ~ {range_end.isoformat()}",
-            f"总消息数：{summary_total}",
+            f"总贡献数：{summary_total}",
             f"活跃天数：{active_days}",
         ]
     )
     if most_active_date is not None:
-        lines.append(f"最活跃的一天：{most_active_date.isoformat()}（{most_active_count} 条）")
+        lines.append(f"最活跃的一天：{most_active_date.isoformat()}（{most_active_count} 次贡献）")
     else:
         lines.append("最活跃的一天：暂无数据")
     return "\n".join(lines)

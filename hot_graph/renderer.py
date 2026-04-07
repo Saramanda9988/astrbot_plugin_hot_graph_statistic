@@ -71,7 +71,7 @@ class HeatmapRenderer:
             draw.text((x, top - 14), label, fill="#656d76", font=self.font)
 
         summary_y = top + grid_height + 20
-        draw.text((16, summary_y), f"Total: {snapshot.summary.total_messages}", fill="#1f2328", font=self.font)
+        draw.text((16, summary_y), f"Contrib: {snapshot.summary.total_messages}", fill="#1f2328", font=self.font)
         draw.text((130, summary_y), f"Active days: {snapshot.summary.active_days}", fill="#1f2328", font=self.font)
         if snapshot.summary.most_active_date is not None:
             hottest = f"Hottest: {snapshot.summary.most_active_date.isoformat()} ({snapshot.summary.most_active_count})"
