@@ -9,6 +9,7 @@ from pathlib import Path
 class PluginSettings:
     db_path: Path
     render_dir: Path
+    font_path: Path | None = None
     timezone: str = "Asia/Shanghai"
     history_days: int = 365
     aggregate_interval_seconds: int = 300

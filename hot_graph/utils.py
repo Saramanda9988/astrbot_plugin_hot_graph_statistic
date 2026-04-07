@@ -58,12 +58,15 @@ def build_settings(config: dict | None, base_dir: Path) -> PluginSettings:
         base_dir,
         str(config.get("render_dir") or "data/hot_graph/render"),
     )
+    font_path_raw = str(config.get("font_path") or "").strip()
+    font_path = normalize_path(base_dir, font_path_raw) if font_path_raw else None
     mock_history_raw = str(config.get("mock_history_path") or "").strip()
     mock_history_path = normalize_path(base_dir, mock_history_raw) if mock_history_raw else None
 
     return PluginSettings(
         db_path=db_path,
         render_dir=render_dir,
+        font_path=font_path,
         timezone=str(config.get("timezone") or "Asia/Shanghai"),
         history_days=max(int(config.get("history_days") or 365), 1),
         aggregate_interval_seconds=max(int(config.get("aggregate_interval_seconds") or 300), 30),

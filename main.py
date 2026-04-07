@@ -24,7 +24,7 @@ from hot_graph import (
 from hot_graph.utils import format_summary
 
 
-@register("astrbot_hot_graph", "LunaRain_079", "群热力图统计插件", "0.1.1")
+@register("astrbot_hot_graph", "LunaRain_079", "群热力图统计插件", "0.1.2")
 class HotGraphPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -34,12 +34,16 @@ class HotGraphPlugin(Star):
         self.repository = HotGraphRepository(self.settings.db_path)
         self.fetcher = build_history_fetcher(self.settings, context)
         self.service = HotGraphService(self.repository, self.fetcher, self.settings)
-        self.renderer = HeatmapRenderer(self.settings.render_dir)
+        self.renderer = HeatmapRenderer(self.settings.render_dir, self.settings.font_path)
         self.scheduler = SyncScheduler(
             self.service,
             self.settings.aggregate_interval_seconds,
             logger,
         )
+        if self.renderer.font_path is not None:
+            logger.info("hot graph renderer font: %s", self.renderer.font_path)
+        else:
+            logger.warning("hot graph renderer did not find a CJK-capable font; falling back to Pillow default font")
 
     async def initialize(self):
         self.repository.initialize()

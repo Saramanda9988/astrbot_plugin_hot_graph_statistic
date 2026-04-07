@@ -9,6 +9,11 @@
     "description": "热力图临时图片输出目录",
     "default": "data/hot_graph/render"
   },
+  "font_path": {
+    "type": "string",
+    "description": "可选，自定义字体文件路径（ttf/ttc/otf），用于修复中文昵称和说明文字渲染",
+    "default": ""
+  },
   "timezone": {
     "type": "string",
     "description": "统计使用的时区",
