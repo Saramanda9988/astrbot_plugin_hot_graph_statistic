@@ -1,30 +1,27 @@
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
-import sys
-
-PLUGIN_ROOT = Path(__file__).resolve().parent
-if str(PLUGIN_ROOT) not in sys.path:
-    sys.path.insert(0, str(PLUGIN_ROOT))
 
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
-from hot_graph import (
-    HeatmapRenderer,
-    HistorySourceUnavailableError,
-    HotGraphRepository,
-    HotGraphService,
-    SyncScheduler,
-    UserNotRegisteredError,
-    build_history_fetcher,
-    build_settings,
-)
-from hot_graph.utils import format_summary
+_hot_graph = importlib.import_module(".hot_graph", package=__package__)
+_utils = importlib.import_module(".hot_graph.utils", package=__package__)
+
+HeatmapRenderer = _hot_graph.HeatmapRenderer
+HistorySourceUnavailableError = _hot_graph.HistorySourceUnavailableError
+HotGraphRepository = _hot_graph.HotGraphRepository
+HotGraphService = _hot_graph.HotGraphService
+SyncScheduler = _hot_graph.SyncScheduler
+UserNotRegisteredError = _hot_graph.UserNotRegisteredError
+build_history_fetcher = _hot_graph.build_history_fetcher
+build_settings = _hot_graph.build_settings
+format_summary = _utils.format_summary
 
 
-@register("astrbot_hot_graph", "LunaRain_079", "群热力图统计插件", "0.1.3")
+@register("astrbot_hot_graph", "LunaRain_079", "群热力图统计插件", "0.1.4")
 class HotGraphPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
