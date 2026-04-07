@@ -49,10 +49,10 @@ class ContextHistoryFetcher:
                 break
 
             for record in records:
-                occurred_at = _normalize_datetime(getattr(record, "created_at", None))
+                occurred_at = _normalize_datetime(_record_value(record, "created_at", "occurred_at", "timestamp"))
                 if occurred_at is None or occurred_at <= request.start_at or occurred_at > request.end_at:
                     continue
-                sender_id = str(getattr(record, "sender_id", "") or "")
+                sender_id = str(_record_value(record, "sender_id", "user_id", "from_user_id") or "")
                 if sender_id != request.user_id:
                     continue
                 items.append(
@@ -60,10 +60,10 @@ class ContextHistoryFetcher:
                         platform_id=request.platform_id,
                         group_id=request.group_id,
                         sender_id=sender_id,
-                        sender_name=str(getattr(record, "sender_name", "") or ""),
-                        message_id=str(getattr(record, "id", "")) or None,
+                        sender_name=str(_record_value(record, "sender_name", "nickname", "user_name") or ""),
+                        message_id=str(_record_value(record, "id", "message_id") or "") or None,
                         occurred_at=occurred_at,
-                        content=dict(getattr(record, "content", {}) or {}),
+                        content=_normalize_content(_record_value(record, "content", "raw_message")),
                     )
                 )
 
@@ -125,6 +125,34 @@ def build_history_fetcher(settings: PluginSettings, context: Any | None = None) 
             return ContextHistoryFetcher(manager)
 
     return DisabledHistoryFetcher()
+
+
+def _record_value(record: Any, *names: str) -> Any:
+    if isinstance(record, dict):
+        for name in names:
+            if name in record:
+                return record.get(name)
+        return None
+    for name in names:
+        value = getattr(record, name, None)
+        if value is not None:
+            return value
+    return None
+
+
+def _normalize_content(value: Any) -> dict:
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return {}
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return {"text": value}
+        return dict(parsed) if isinstance(parsed, dict) else {"value": parsed}
+    return {}
 
 
 def _normalize_datetime(value: Any) -> datetime | None:

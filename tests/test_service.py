@@ -179,3 +179,98 @@ def test_sync_is_idempotent_and_preview_does_not_persist(tmp_path):
         assert formal_after_final_sync.summary.total_messages == 1
 
     asyncio.run(scenario())
+
+
+def test_preview_and_sync_reconcile_history_when_sync_cursor_advanced_without_counts(tmp_path):
+    history = [
+        {
+            "platform_id": "mock-platform",
+            "group_id": "group-1",
+            "sender_id": "user-1",
+            "sender_name": "Alice",
+            "message_id": "m1",
+            "occurred_at": "2026-04-01T01:00:00+00:00",
+        },
+        {
+            "platform_id": "mock-platform",
+            "group_id": "group-1",
+            "sender_id": "user-1",
+            "sender_name": "Alice",
+            "message_id": "m2",
+            "occurred_at": "2026-04-01T02:00:00+00:00",
+        },
+        {
+            "platform_id": "mock-platform",
+            "group_id": "group-1",
+            "sender_id": "user-1",
+            "sender_name": "Alice",
+            "message_id": "m3",
+            "occurred_at": "2026-04-01T03:00:00+00:00",
+        },
+        {
+            "platform_id": "mock-platform",
+            "group_id": "group-1",
+            "sender_id": "user-1",
+            "sender_name": "Alice",
+            "message_id": "m4",
+            "occurred_at": "2026-04-01T04:00:00+00:00",
+        },
+        {
+            "platform_id": "mock-platform",
+            "group_id": "group-1",
+            "sender_id": "user-1",
+            "sender_name": "Alice",
+            "message_id": "m5",
+            "occurred_at": "2026-04-01T05:00:00+00:00",
+        },
+        {
+            "platform_id": "mock-platform",
+            "group_id": "group-1",
+            "sender_id": "user-1",
+            "sender_name": "Alice",
+            "message_id": "m6",
+            "occurred_at": "2026-04-01T06:00:00+00:00",
+        },
+    ]
+    service, repository = _build_service(tmp_path, history)
+
+    async def scenario():
+        registration, _ = await service.register_user(
+            platform_id="mock-platform",
+            group_id="group-1",
+            user_id="user-1",
+            display_name="Alice",
+        )
+
+        repository.apply_sync_batch(
+            registration=registration,
+            daily_counts={},
+            expected_last_synced_at=None,
+            next_synced_at=datetime(2026, 4, 1, 12, 0, tzinfo=UTC),
+        )
+
+        preview = await service.get_preview_snapshot(
+            platform_id="mock-platform",
+            group_id="group-1",
+            user_id="user-1",
+            now=datetime(2026, 4, 2, 12, 0, tzinfo=UTC),
+        )
+        assert preview.summary.total_messages == 1
+        assert preview.is_preview is True
+
+        sync_result = await service.sync_registration(
+            registration=registration,
+            now=datetime(2026, 4, 2, 12, 0, tzinfo=UTC),
+        )
+        assert sync_result.applied is True
+        assert sync_result.counts_applied == 6
+
+        formal = await service.get_formal_snapshot(
+            platform_id="mock-platform",
+            group_id="group-1",
+            user_id="user-1",
+            now=datetime(2026, 4, 2, 12, 0, tzinfo=UTC),
+        )
+        assert formal.summary.total_messages == 1
+
+    asyncio.run(scenario())

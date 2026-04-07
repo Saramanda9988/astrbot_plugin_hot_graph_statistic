@@ -51,17 +51,20 @@ class HotGraphService:
             group_id=registration.group_id,
             user_id=registration.user_id,
         )
-        start_at = state.last_synced_at if state and state.last_synced_at else now - timedelta(days=self.settings.history_days)
-        request = FetchRequest(
+        start_date, end_date = date_window(now, self.settings.timezone, self.settings.history_days)
+        formal_raw_counts = self.repository.load_daily_counts(
             platform_id=registration.platform_id,
             group_id=registration.group_id,
             user_id=registration.user_id,
-            start_at=start_at,
-            end_at=now,
-            page_size=self.settings.history_page_size,
+            start_date=start_date,
+            end_date=end_date,
         )
-        messages = await self.history_fetcher.fetch_messages(request)
-        daily_counts = self._aggregate_messages(messages)
+        daily_counts = await self._load_pending_raw_counts(
+            registration=registration,
+            formal_raw_counts=formal_raw_counts,
+            state=state,
+            now=now,
+        )
         applied = self.repository.apply_sync_batch(
             registration=registration,
             daily_counts=daily_counts,
@@ -72,7 +75,7 @@ class HotGraphService:
             registration=registration,
             synced_from=state.last_synced_at if state else None,
             synced_to=now,
-            messages_seen=len(messages),
+            messages_seen=sum(daily_counts.values()),
             counts_applied=sum(daily_counts.values()),
             applied=applied,
         )
@@ -156,17 +159,12 @@ class HotGraphService:
             group_id=group_id,
             user_id=user_id,
         )
-        start_at = state.last_synced_at if state and state.last_synced_at else now - timedelta(days=self.settings.history_days)
-        request = FetchRequest(
-            platform_id=platform_id,
-            group_id=group_id,
-            user_id=user_id,
-            start_at=start_at,
-            end_at=now,
-            page_size=self.settings.history_page_size,
+        increment = await self._load_pending_raw_counts(
+            registration=registration,
+            formal_raw_counts=formal_raw_counts,
+            state=state,
+            now=now,
         )
-        messages = await self.history_fetcher.fetch_messages(request)
-        increment = self._aggregate_messages(messages)
         merged_raw = dict(formal_raw_counts)
         for stat_date, count in increment.items():
             merged_raw[stat_date] = merged_raw.get(stat_date, 0) + count
@@ -205,6 +203,57 @@ class HotGraphService:
             stat_date = local_date(message.occurred_at, self.settings.timezone)
             counts[stat_date] += 1
         return dict(counts)
+
+    async def _load_pending_raw_counts(
+        self,
+        *,
+        registration: RegisteredUser,
+        formal_raw_counts: dict,
+        state,
+        now,
+    ) -> dict:
+        start_at = state.last_synced_at if state and state.last_synced_at else now - timedelta(days=self.settings.history_days)
+        increment = await self._fetch_raw_counts(
+            registration=registration,
+            start_at=start_at,
+            end_at=now,
+        )
+        if increment or state is None or state.last_synced_at is None:
+            return increment
+
+        full_window_counts = await self._fetch_raw_counts(
+            registration=registration,
+            start_at=now - timedelta(days=self.settings.history_days),
+            end_at=now,
+        )
+        return self._subtract_raw_counts(full_window_counts, formal_raw_counts)
+
+    async def _fetch_raw_counts(
+        self,
+        *,
+        registration: RegisteredUser,
+        start_at,
+        end_at,
+    ) -> dict:
+        request = FetchRequest(
+            platform_id=registration.platform_id,
+            group_id=registration.group_id,
+            user_id=registration.user_id,
+            start_at=start_at,
+            end_at=end_at,
+            page_size=self.settings.history_page_size,
+        )
+        messages = await self.history_fetcher.fetch_messages(request)
+        return self._aggregate_messages(messages)
+
+    @staticmethod
+    def _subtract_raw_counts(current_raw_counts, persisted_raw_counts):
+        increment = {}
+        for stat_date, current_count in current_raw_counts.items():
+            delta = current_count - persisted_raw_counts.get(stat_date, 0)
+            if delta > 0:
+                increment[stat_date] = delta
+        return increment
 
     @staticmethod
     def _to_contribution_counts(raw_counts_by_date):

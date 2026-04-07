@@ -24,7 +24,7 @@ from hot_graph import (
 from hot_graph.utils import format_summary
 
 
-@register("astrbot_hot_graph", "LunaRain_079", "群热力图统计插件", "0.1.2")
+@register("astrbot_hot_graph", "LunaRain_079", "群热力图统计插件", "0.1.3")
 class HotGraphPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
