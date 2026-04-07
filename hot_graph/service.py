@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from datetime import timedelta
 
-from .exceptions import UserNotRegisteredError
+from .exceptions import HistorySourceUnavailableError, UserNotRegisteredError
 from .fetcher import FetchRequest, HistoryFetcher
 from .models import ActivitySnapshot, HeatmapSummary, RegisteredUser, SyncResult
 from .repository import HotGraphRepository
 from .utils import date_window, local_date, utc_now
 
 CONTRIBUTION_MESSAGE_COUNT = 5
+logger = logging.getLogger(__name__)
 
 
 class HotGraphService:
@@ -65,6 +67,14 @@ class HotGraphService:
             state=state,
             now=now,
         )
+        logger.debug(
+            "hot graph sync registration: platform=%s group=%s user=%s last_synced_at=%s pending_raw=%s",
+            registration.platform_id,
+            registration.group_id,
+            registration.user_id,
+            state.last_synced_at.isoformat() if state and state.last_synced_at else None,
+            {day.isoformat(): count for day, count in daily_counts.items()},
+        )
         applied = self.repository.apply_sync_batch(
             registration=registration,
             daily_counts=daily_counts,
@@ -113,6 +123,14 @@ class HotGraphService:
             end_date=end_date,
         )
         contribution_counts = self._to_contribution_counts(raw_counts)
+        logger.debug(
+            "hot graph formal snapshot: platform=%s group=%s user=%s raw_days=%s contribution_days=%s",
+            registration.platform_id,
+            registration.group_id,
+            registration.user_id,
+            {day.isoformat(): count for day, count in raw_counts.items()},
+            {day.isoformat(): count for day, count in contribution_counts.items()},
+        )
         return ActivitySnapshot(
             registration=registration,
             counts_by_date=contribution_counts,
@@ -169,6 +187,16 @@ class HotGraphService:
         for stat_date, count in increment.items():
             merged_raw[stat_date] = merged_raw.get(stat_date, 0) + count
         contribution_counts = self._to_contribution_counts(merged_raw)
+        logger.debug(
+            "hot graph preview snapshot: platform=%s group=%s user=%s last_synced_at=%s formal_raw=%s increment_raw=%s merged_contribution=%s",
+            registration.platform_id,
+            registration.group_id,
+            registration.user_id,
+            state.last_synced_at.isoformat() if state and state.last_synced_at else None,
+            {day.isoformat(): count for day, count in formal_raw_counts.items()},
+            {day.isoformat(): count for day, count in increment.items()},
+            {day.isoformat(): count for day, count in contribution_counts.items()},
+        )
         note = f"临时预览：本次结果未写入正式统计。统计口径：每 {CONTRIBUTION_MESSAGE_COUNT} 条消息记 1 次贡献。"
         if not increment:
             note = f"临时预览：自上次正式同步以来没有新的有效消息。统计口径：每 {CONTRIBUTION_MESSAGE_COUNT} 条消息记 1 次贡献。"
@@ -219,6 +247,15 @@ class HotGraphService:
             end_at=now,
         )
         if increment or state is None or state.last_synced_at is None:
+            logger.debug(
+                "hot graph pending raw counts direct: platform=%s group=%s user=%s start_at=%s end_at=%s counts=%s",
+                registration.platform_id,
+                registration.group_id,
+                registration.user_id,
+                start_at.isoformat(),
+                now.isoformat(),
+                {day.isoformat(): count for day, count in increment.items()},
+            )
             return increment
 
         full_window_counts = await self._fetch_raw_counts(
@@ -226,7 +263,17 @@ class HotGraphService:
             start_at=now - timedelta(days=self.settings.history_days),
             end_at=now,
         )
-        return self._subtract_raw_counts(full_window_counts, formal_raw_counts)
+        reconciled = self._subtract_raw_counts(full_window_counts, formal_raw_counts)
+        logger.debug(
+            "hot graph pending raw counts reconciled: platform=%s group=%s user=%s full_window=%s formal_raw=%s reconciled=%s",
+            registration.platform_id,
+            registration.group_id,
+            registration.user_id,
+            {day.isoformat(): count for day, count in full_window_counts.items()},
+            {day.isoformat(): count for day, count in formal_raw_counts.items()},
+            {day.isoformat(): count for day, count in reconciled.items()},
+        )
+        return reconciled
 
     async def _fetch_raw_counts(
         self,
@@ -243,8 +290,31 @@ class HotGraphService:
             end_at=end_at,
             page_size=self.settings.history_page_size,
         )
-        messages = await self.history_fetcher.fetch_messages(request)
-        return self._aggregate_messages(messages)
+        try:
+            messages = await self.history_fetcher.fetch_messages(request)
+        except HistorySourceUnavailableError:
+            logger.debug(
+                "hot graph history source unavailable while fetching: platform=%s group=%s user=%s start_at=%s end_at=%s source_type=%s",
+                registration.platform_id,
+                registration.group_id,
+                registration.user_id,
+                start_at.isoformat(),
+                end_at.isoformat(),
+                self.settings.history_source_type,
+            )
+            raise
+        counts = self._aggregate_messages(messages)
+        logger.debug(
+            "hot graph fetched raw counts: platform=%s group=%s user=%s start_at=%s end_at=%s messages=%s counts=%s",
+            registration.platform_id,
+            registration.group_id,
+            registration.user_id,
+            start_at.isoformat(),
+            end_at.isoformat(),
+            len(messages),
+            {day.isoformat(): count for day, count in counts.items()},
+        )
+        return counts
 
     @staticmethod
     def _subtract_raw_counts(current_raw_counts, persisted_raw_counts):

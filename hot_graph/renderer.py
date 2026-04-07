@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from datetime import timedelta
 from pathlib import Path
@@ -13,6 +14,9 @@ from .utils import ensure_directory
 _TITLE_FONT_SIZE = 16
 _BODY_FONT_SIZE = 12
 _KNOWN_FONT_FILENAMES = (
+    "DejaVuSans.ttf",
+    "LiberationSans-Regular.ttf",
+    "Arial.ttf",
     "msyh.ttc",
     "msyhbd.ttc",
     "simhei.ttf",
@@ -31,6 +35,8 @@ _KNOWN_FONT_FILENAMES = (
     "wqy-microhei.ttc",
 )
 _KNOWN_FONT_PATTERNS = (
+    "DejaVuSans.ttf",
+    "LiberationSans-Regular.ttf",
     "NotoSansCJK-*.ttc",
     "NotoSansCJK-*.otf",
     "NotoSansSC-*.otf",
@@ -38,6 +44,7 @@ _KNOWN_FONT_PATTERNS = (
     "SourceHanSans*-Normal.otf",
     "wqy-*.ttc",
 )
+logger = logging.getLogger(__name__)
 
 
 class HeatmapRenderer:
@@ -74,14 +81,19 @@ class HeatmapRenderer:
 
         title_font = self._get_font(_TITLE_FONT_SIZE)
         body_font = self._get_font(_BODY_FONT_SIZE)
+        texts = _render_texts(snapshot, use_cjk=self.font_path is not None)
 
         draw.text(
             (16, 12),
-            f"{snapshot.registration.display_name} 的群聊热力图",
+            texts["title"],
             fill="#1f2328",
             font=title_font,
         )
-        subtitle = f"{snapshot.registration.group_id} | {start_date.isoformat()} ~ {end_date.isoformat()}"
+        subtitle = texts["subtitle"].format(
+            group_id=snapshot.registration.group_id,
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+        )
         draw.text((16, 30), subtitle, fill="#656d76", font=body_font)
 
         for row, label in zip((0, 2, 4), ("Mon", "Wed", "Fri")):
@@ -110,15 +122,19 @@ class HeatmapRenderer:
             draw.text((x, top - 14), label, fill="#656d76", font=body_font)
 
         summary_y = top + grid_height + 20
-        draw.text((16, summary_y), f"Contrib: {snapshot.summary.total_messages}", fill="#1f2328", font=body_font)
-        draw.text((130, summary_y), f"Active days: {snapshot.summary.active_days}", fill="#1f2328", font=body_font)
+        draw.text((16, summary_y), texts["contrib"].format(total=snapshot.summary.total_messages), fill="#1f2328", font=body_font)
+        draw.text((130, summary_y), texts["active_days"].format(days=snapshot.summary.active_days), fill="#1f2328", font=body_font)
         if snapshot.summary.most_active_date is not None:
-            hottest = f"Hottest: {snapshot.summary.most_active_date.isoformat()} ({snapshot.summary.most_active_count})"
+            hottest = texts["hottest"].format(
+                date=snapshot.summary.most_active_date.isoformat(),
+                count=snapshot.summary.most_active_count,
+            )
         else:
-            hottest = "Hottest: n/a"
+            hottest = texts["hottest_empty"]
         draw.text((16, summary_y + 14), hottest, fill="#1f2328", font=body_font)
-        if snapshot.note:
-            draw.text((16, summary_y + 28), snapshot.note, fill="#8250df", font=body_font)
+        note_text = texts["note"]
+        if note_text:
+            draw.text((16, summary_y + 28), note_text, fill="#8250df", font=body_font)
 
         return image
 
@@ -172,6 +188,7 @@ def _resolve_font_path(
             for candidate in root.rglob(pattern):
                 if candidate.is_file():
                     return candidate
+    logger.debug("hot graph renderer could not resolve a font from search roots: %s", roots)
     return None
 
 
@@ -194,3 +211,43 @@ def _default_font_search_roots() -> list[Path]:
         ]
     )
     return roots
+
+
+def _render_texts(snapshot: ActivitySnapshot, *, use_cjk: bool) -> dict[str, str | None]:
+    if use_cjk:
+        return {
+            "title": f"{snapshot.registration.display_name} 的群聊热力图",
+            "subtitle": "{group_id} | {start_date} ~ {end_date}",
+            "contrib": "Contrib: {total}",
+            "active_days": "Active days: {days}",
+            "hottest": "Hottest: {date} ({count})",
+            "hottest_empty": "Hottest: n/a",
+            "note": snapshot.note,
+        }
+
+    safe_name = _ascii_fallback(snapshot.registration.display_name, fallback=snapshot.registration.user_id)
+    note = _ascii_note(snapshot)
+    return {
+        "title": f"{safe_name} activity heatmap",
+        "subtitle": "Group {group_id} | {start_date} ~ {end_date}",
+        "contrib": "Contrib: {total}",
+        "active_days": "Active days: {days}",
+        "hottest": "Hottest: {date} ({count})",
+        "hottest_empty": "Hottest: n/a",
+        "note": note,
+    }
+
+
+def _ascii_fallback(text: str, *, fallback: str) -> str:
+    safe = "".join(ch for ch in text if 32 <= ord(ch) <= 126).strip()
+    return safe or fallback
+
+
+def _ascii_note(snapshot: ActivitySnapshot) -> str:
+    if not snapshot.note:
+        return "Rule: 1 contribution per 5 messages."
+    if snapshot.is_preview and "没有新的有效消息" in snapshot.note:
+        return "Preview: no new valid messages since last formal sync."
+    if snapshot.is_preview:
+        return "Preview only: this result is not written to formal stats."
+    return "Rule: 1 contribution per 5 messages."

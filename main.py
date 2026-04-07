@@ -21,7 +21,7 @@ build_settings = _hot_graph.build_settings
 format_summary = _utils.format_summary
 
 
-@register("astrbot_hot_graph", "LunaRain_079", "群热力图统计插件", "0.1.4")
+@register("astrbot_hot_graph", "LunaRain_079", "群热力图统计插件", "0.1.5")
 class HotGraphPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -44,6 +44,16 @@ class HotGraphPlugin(Star):
 
     async def initialize(self):
         self.repository.initialize()
+        logger.info(
+            "hot graph settings: db_path=%s render_dir=%s timezone=%s history_days=%s page_size=%s history_source_type=%s background_sync=%s",
+            self.settings.db_path,
+            self.settings.render_dir,
+            self.settings.timezone,
+            self.settings.history_days,
+            self.settings.history_page_size,
+            self.settings.history_source_type,
+            self.settings.enable_background_sync,
+        )
         if self.settings.enable_background_sync:
             self.scheduler.start()
             logger.info("hot graph background sync started")
@@ -87,6 +97,15 @@ class HotGraphPlugin(Star):
                 user_id=user_id,
                 display_name=display_name,
             )
+            logger.debug(
+                "hot graph showme snapshot ready: platform=%s group=%s user=%s total=%s active_days=%s note=%s",
+                platform_id,
+                group_id,
+                user_id,
+                snapshot.summary.total_messages,
+                snapshot.summary.active_days,
+                snapshot.note,
+            )
         except UserNotRegisteredError as exc:
             yield event.plain_result(str(exc))
             return
@@ -126,6 +145,15 @@ class HotGraphPlugin(Star):
                 group_id=group_id,
                 user_id=user_id,
                 display_name=display_name,
+            )
+            logger.debug(
+                "hot graph updateme snapshot ready: platform=%s group=%s user=%s total=%s active_days=%s note=%s",
+                platform_id,
+                group_id,
+                user_id,
+                snapshot.summary.total_messages,
+                snapshot.summary.active_days,
+                snapshot.note,
             )
         except UserNotRegisteredError as exc:
             yield event.plain_result(str(exc))

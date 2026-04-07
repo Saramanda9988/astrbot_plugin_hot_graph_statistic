@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 import pytest
 
 from hot_graph.models import ActivitySnapshot, HeatmapSummary, RegisteredUser
-from hot_graph.renderer import HeatmapRenderer, _resolve_font_path
+from hot_graph.renderer import HeatmapRenderer, _render_texts, _resolve_font_path
 
 
 def _build_snapshot(display_name: str = "图_Official") -> ActivitySnapshot:
@@ -76,3 +76,10 @@ def test_renderer_renders_snapshot_with_detected_font(tmp_path):
     assert renderer.font_path == font_path
     assert output.exists()
     assert output.stat().st_size > 0
+
+
+def test_renderer_uses_ascii_fallback_text_without_cjk_font():
+    texts = _render_texts(_build_snapshot("寒蝉_Official"), use_cjk=False)
+
+    assert texts["title"] == " _Official activity heatmap" or texts["title"] == "_Official activity heatmap"
+    assert texts["note"] == "Preview only: this result is not written to formal stats."
