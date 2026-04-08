@@ -53,16 +53,18 @@ logger = logging.getLogger(__name__)
 
 
 class HeatmapRenderer:
-    def __init__(self, render_dir: Path, font_path: Path | None = None) -> None:
+    def __init__(self, render_dir: Path, font_path: Path | None = None, render_scale: int = 2) -> None:
         self.render_dir = render_dir
         ensure_directory(self.render_dir)
         self.font_path = _resolve_font_path(font_path)
+        self.render_scale = max(int(render_scale), 1)
         self._font_cache: dict[int, ImageFont.FreeTypeFont | ImageFont.ImageFont] = {}
 
     def render_snapshot(self, snapshot: ActivitySnapshot) -> Path:
         path = self.render_dir / f"heatmap_{uuid4().hex}.png"
         image = self._draw_heatmap(snapshot)
-        image.save(path, format="PNG")
+        dpi = 72 * self.render_scale
+        image.save(path, format="PNG", dpi=(dpi, dpi))
         return path
 
     def _draw_heatmap(self, snapshot: ActivitySnapshot) -> Image.Image:
@@ -72,24 +74,25 @@ class HeatmapRenderer:
         total_days = (end_date - calendar_start).days + 1
         columns = (total_days + 6) // 7
 
-        cell = 12
-        gap = 3
-        left = 48
-        top = 64
+        scale = self.render_scale
+        cell = 12 * scale
+        gap = 3 * scale
+        left = 48 * scale
+        top = 64 * scale
         grid_width = columns * (cell + gap)
         grid_height = 7 * (cell + gap)
-        width = left + grid_width + 28
-        height = top + grid_height + 82
+        width = left + grid_width + 28 * scale
+        height = top + grid_height + 82 * scale
 
         image = Image.new("RGB", (width, height), "#ffffff")
         draw = ImageDraw.Draw(image)
 
-        title_font = self._get_font(_TITLE_FONT_SIZE)
-        body_font = self._get_font(_BODY_FONT_SIZE)
+        title_font = self._get_font(_TITLE_FONT_SIZE * scale)
+        body_font = self._get_font(_BODY_FONT_SIZE * scale)
         texts = _render_texts(snapshot, use_cjk=self.font_path is not None)
 
         draw.text(
-            (16, 12),
+            (16 * scale, 12 * scale),
             texts["title"],
             fill="#1f2328",
             font=title_font,
@@ -99,11 +102,11 @@ class HeatmapRenderer:
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
-        draw.text((16, 30), subtitle, fill="#656d76", font=body_font)
+        draw.text((16 * scale, 30 * scale), subtitle, fill="#656d76", font=body_font)
 
         for row, label in zip((0, 2, 4), ("Mon", "Wed", "Fri")):
-            y = top + row * (cell + gap) + 1
-            draw.text((16, y), label, fill="#656d76", font=body_font)
+            y = top + row * (cell + gap) + scale
+            draw.text((16 * scale, y), label, fill="#656d76", font=body_font)
 
         max_count = max(snapshot.counts_by_date.values(), default=0)
         current = calendar_start
@@ -117,18 +120,18 @@ class HeatmapRenderer:
             count = snapshot.counts_by_date.get(current, 0)
             color = _resolve_color(count, max_count)
             outline = "#d0d7de" if current < start_date or current > end_date else color
-            draw.rounded_rectangle((x, y, x + cell, y + cell), radius=2, fill=color, outline=outline)
+            draw.rounded_rectangle((x, y, x + cell, y + cell), radius=2 * scale, fill=color, outline=outline)
             if current.day == 1:
                 month_labels.setdefault(col, current.strftime("%b"))
             current += timedelta(days=1)
 
         for col, label in month_labels.items():
             x = left + col * (cell + gap)
-            draw.text((x, top - 14), label, fill="#656d76", font=body_font)
+            draw.text((x, top - 14 * scale), label, fill="#656d76", font=body_font)
 
-        summary_y = top + grid_height + 20
-        draw.text((16, summary_y), texts["contrib"].format(total=snapshot.summary.total_messages), fill="#1f2328", font=body_font)
-        draw.text((130, summary_y), texts["active_days"].format(days=snapshot.summary.active_days), fill="#1f2328", font=body_font)
+        summary_y = top + grid_height + 20 * scale
+        draw.text((16 * scale, summary_y), texts["contrib"].format(total=snapshot.summary.total_messages), fill="#1f2328", font=body_font)
+        draw.text((130 * scale, summary_y), texts["active_days"].format(days=snapshot.summary.active_days), fill="#1f2328", font=body_font)
         if snapshot.summary.most_active_date is not None:
             hottest = texts["hottest"].format(
                 date=snapshot.summary.most_active_date.isoformat(),
@@ -136,10 +139,10 @@ class HeatmapRenderer:
             )
         else:
             hottest = texts["hottest_empty"]
-        draw.text((16, summary_y + 14), hottest, fill="#1f2328", font=body_font)
+        draw.text((16 * scale, summary_y + 14 * scale), hottest, fill="#1f2328", font=body_font)
         note_text = texts["note"]
         if note_text:
-            draw.text((16, summary_y + 28), note_text, fill="#8250df", font=body_font)
+            draw.text((16 * scale, summary_y + 28 * scale), note_text, fill="#8250df", font=body_font)
 
         return image
 

@@ -21,7 +21,7 @@ build_settings = _hot_graph.build_settings
 format_summary = _utils.format_summary
 
 
-@register("astrbot_hot_graph", "LunaRain_079", "群热力图统计插件", "0.1.8")
+@register("astrbot_hot_graph", "LunaRain_079", "群热力图统计插件", "0.1.9")
 class HotGraphPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -31,7 +31,11 @@ class HotGraphPlugin(Star):
         self.repository = HotGraphRepository(self.settings.db_path)
         self.fetcher = build_history_fetcher(self.settings, context)
         self.service = HotGraphService(self.repository, self.fetcher, self.settings)
-        self.renderer = HeatmapRenderer(self.settings.render_dir, self.settings.font_path)
+        self.renderer = HeatmapRenderer(
+            self.settings.render_dir,
+            self.settings.font_path,
+            self.settings.render_scale,
+        )
         self.scheduler = SyncScheduler(
             self.service,
             self.settings.aggregate_interval_seconds,
@@ -45,9 +49,10 @@ class HotGraphPlugin(Star):
     async def initialize(self):
         self.repository.initialize()
         logger.info(
-            "hot graph settings: db_path=%s render_dir=%s timezone=%s history_days=%s page_size=%s history_source_type=%s background_sync=%s",
+            "hot graph settings: db_path=%s render_dir=%s render_scale=%s timezone=%s history_days=%s page_size=%s history_source_type=%s background_sync=%s",
             self.settings.db_path,
             self.settings.render_dir,
+            self.settings.render_scale,
             self.settings.timezone,
             self.settings.history_days,
             self.settings.history_page_size,

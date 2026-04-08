@@ -70,12 +70,22 @@ def test_renderer_renders_snapshot_with_detected_font(tmp_path):
     if font_path is None:
         pytest.skip("No detectable CJK font in test environment")
 
-    renderer = HeatmapRenderer(tmp_path, font_path=font_path)
+    renderer = HeatmapRenderer(tmp_path, font_path=font_path, render_scale=2)
     output = renderer.render_snapshot(_build_snapshot())
 
     assert renderer.font_path == font_path
+    assert renderer.render_scale == 2
     assert output.exists()
     assert output.stat().st_size > 0
+
+
+def test_renderer_scale_increases_output_size(tmp_path):
+    renderer = HeatmapRenderer(tmp_path, font_path=None, render_scale=2)
+
+    image = renderer._draw_heatmap(_build_snapshot())
+
+    assert image.size[0] > 800
+    assert image.size[1] > 400
 
 
 def test_renderer_uses_ascii_fallback_text_without_cjk_font():

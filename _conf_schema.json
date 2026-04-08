@@ -14,6 +14,12 @@
     "description": "可选，自定义字体文件路径（ttf/ttc/otf），用于修复中文昵称和说明文字渲染",
     "default": ""
   },
+  "render_scale": {
+    "type": "int",
+    "description": "图片渲染倍率",
+    "hint": "默认 2。值越大图片越清晰，但体积也会更大。",
+    "default": 2
+  },
   "timezone": {
     "type": "string",
     "description": "统计使用的时区",
