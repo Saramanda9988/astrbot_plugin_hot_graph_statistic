@@ -219,3 +219,25 @@ def test_build_history_fetcher_prefers_qq_onebot_api_for_auto(tmp_path):
     fetcher = build_history_fetcher(settings, context)
 
     assert isinstance(fetcher, QqOneBotApiHistoryFetcher)
+
+
+def test_qq_onebot_history_fetcher_accepts_napcat_platform_id():
+    responses = [{"messages": []}]
+    client = _FakeClient(responses)
+    context = _FakeContext([_FakePlatform(client, meta=_FakePlatformMeta(id="napcat", name="napcat", type="aiocqhttp"))])
+    fetcher = QqOneBotApiHistoryFetcher(context)
+    request = FetchRequest(
+        platform_id="napcat",
+        group_id="168483623",
+        user_id="user-1",
+        start_at=datetime(2026, 4, 6, 0, 0, tzinfo=UTC),
+        end_at=datetime(2026, 4, 7, 0, 0, tzinfo=UTC),
+        page_size=20,
+    )
+
+    async def scenario():
+        messages = await fetcher.fetch_messages(request)
+        assert messages == []
+        assert client.api.calls[0][0] == "get_group_msg_history"
+
+    asyncio.run(scenario())

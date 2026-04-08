@@ -12,6 +12,16 @@ from .exceptions import HistorySourceUnavailableError
 from .models import HistoryMessage, PluginSettings
 
 logger = logging.getLogger(__name__)
+_QQ_ONEBOT_PLATFORM_ALIASES = {
+    "aiocqhttp",
+    "napcat",
+    "onebot",
+    "onebotv11",
+    "qq",
+    "lagrange",
+    "llbot",
+    "llonebot",
+}
 
 
 @dataclass(frozen=True)
@@ -39,7 +49,7 @@ class QqOneBotApiHistoryFetcher:
         self.context = context
 
     async def fetch_messages(self, request: FetchRequest) -> list[HistoryMessage]:
-        if "aiocqhttp" not in str(request.platform_id or "").lower():
+        if not _is_qq_onebot_platform(request.platform_id):
             raise HistorySourceUnavailableError(
                 f"当前仅支持 QQ OneBot 历史拉取，收到平台: {request.platform_id or 'unknown'}"
             )
@@ -350,7 +360,7 @@ def _resolve_onebot_client(context: Any, platform_id: str | None) -> Any | None:
             fallback_client = client
         if not platform_id:
             continue
-        if any(platform_id == name or platform_id in name for name in meta_names):
+        if _platform_matches_requested_id(platform_id, meta_names):
             return client
 
     return fallback_client
@@ -381,6 +391,26 @@ def _platform_meta_names(platform: Any) -> list[str]:
     if class_name and class_name not in names:
         names.append(class_name)
     return names
+
+
+def _platform_matches_requested_id(request_platform_id: str, meta_names: list[str]) -> bool:
+    if any(request_platform_id == name or request_platform_id in name for name in meta_names):
+        return True
+    if request_platform_id not in _QQ_ONEBOT_PLATFORM_ALIASES:
+        return False
+    return any(
+        name in _QQ_ONEBOT_PLATFORM_ALIASES or any(alias in name for alias in _QQ_ONEBOT_PLATFORM_ALIASES)
+        for name in meta_names
+    )
+
+
+def _is_qq_onebot_platform(platform_id: str | None) -> bool:
+    platform_text = str(platform_id or "").strip().lower()
+    if not platform_text:
+        return False
+    if platform_text in _QQ_ONEBOT_PLATFORM_ALIASES:
+        return True
+    return any(alias in platform_text for alias in _QQ_ONEBOT_PLATFORM_ALIASES)
 
 
 def _platform_client(platform: Any) -> Any | None:
