@@ -37,9 +37,9 @@
   "history_source_type": {
     "type": "string",
     "description": "历史消息来源类型",
-    "hint": "默认禁用；只有在确认宿主已保存并可读取群消息历史时，才改为 context_history。",
-    "default": "disabled",
-    "options": ["context_history", "mock_json", "disabled"]
+    "hint": "默认使用 QQ OneBot API 拉取群历史。当前 `auto` / `qq_onebot_api` 仅面向 QQ(aiocqhttp/NapCat/Lagrange 等)；`legacy_context_history` 仅保留给旧宿主历史管理器兼容排查。",
+    "default": "auto",
+    "options": ["auto", "qq_onebot_api", "legacy_context_history", "mock_json", "disabled"]
   },
   "mock_history_path": {
     "type": "string",

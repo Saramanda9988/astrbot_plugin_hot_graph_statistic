@@ -71,7 +71,7 @@ def build_settings(config: dict | None, base_dir: Path) -> PluginSettings:
         history_days=max(int(config.get("history_days") or 365), 1),
         aggregate_interval_seconds=max(int(config.get("aggregate_interval_seconds") or 300), 30),
         history_page_size=max(int(config.get("history_page_size") or 200), 20),
-        history_source_type=str(config.get("history_source_type") or "context_history"),
+        history_source_type=str(config.get("history_source_type") or "auto"),
         mock_history_path=mock_history_path,
         enable_background_sync=bool(config.get("enable_background_sync", True)),
     )

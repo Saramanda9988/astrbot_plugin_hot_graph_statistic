@@ -3,7 +3,13 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 
-from hot_graph.fetcher import ContextHistoryFetcher, FetchRequest
+from hot_graph.fetcher import (
+    ContextHistoryFetcher,
+    FetchRequest,
+    QqOneBotApiHistoryFetcher,
+    build_history_fetcher,
+)
+from hot_graph.models import PluginSettings
 
 
 class _DictHistoryManager:
@@ -51,7 +57,7 @@ def test_context_history_fetcher_supports_dict_records():
         user_id="user-1",
         start_at=datetime(2026, 4, 6, 0, 0, tzinfo=UTC),
         end_at=datetime(2026, 4, 7, 0, 0, tzinfo=UTC),
-        page_size=50,
+        page_size=2,
     )
 
     async def scenario():
@@ -92,7 +98,7 @@ def test_context_history_fetcher_probes_alternate_scope_keys():
         user_id="user-1",
         start_at=datetime(2026, 4, 6, 0, 0, tzinfo=UTC),
         end_at=datetime(2026, 4, 7, 0, 0, tzinfo=UTC),
-        page_size=50,
+        page_size=2,
     )
 
     async def scenario():
@@ -105,3 +111,111 @@ def test_context_history_fetcher_probes_alternate_scope_keys():
         ]
 
     asyncio.run(scenario())
+
+
+class _FakeApi:
+    def __init__(self, responses):
+        self.responses = responses
+        self.calls = []
+
+    async def call_action(self, action, **params):
+        self.calls.append((action, params))
+        return self.responses[len(self.calls) - 1]
+
+
+class _FakeClient:
+    def __init__(self, responses):
+        self.api = _FakeApi(responses)
+
+
+class _FakePlatformMeta:
+    def __init__(self, *, id="aiocqhttp", name="aiocqhttp", type="aiocqhttp"):
+        self.id = id
+        self.name = name
+        self.type = type
+
+
+class _FakePlatform:
+    def __init__(self, client, meta=None):
+        self._client = client
+        self.metadata = meta or _FakePlatformMeta()
+
+    def get_client(self):
+        return self._client
+
+
+class _FakePlatformManager:
+    def __init__(self, platforms):
+        self._platforms = platforms
+
+    def get_insts(self):
+        return self._platforms
+
+
+class _FakeContext:
+    def __init__(self, platforms):
+        self.platform_manager = _FakePlatformManager(platforms)
+
+
+def test_qq_onebot_history_fetcher_fetches_group_history_via_api():
+    responses = [
+        {
+            "messages": [
+                {
+                    "message_id": 300,
+                    "message_seq": 300,
+                    "time": 1775505600,
+                    "sender": {"user_id": "user-1", "nickname": "Alice", "card": ""},
+                    "message": [{"type": "text", "data": {"text": "ignored latest"}}],
+                    "raw_message": "ignored latest",
+                },
+                {
+                    "message_id": 200,
+                    "message_seq": 200,
+                    "time": 1775502000,
+                    "sender": {"user_id": "user-1", "nickname": "Alice", "card": ""},
+                    "message": [{"type": "text", "data": {"text": "hello"}}],
+                    "raw_message": "hello",
+                },
+            ]
+        },
+        {"messages": []},
+    ]
+    client = _FakeClient(responses)
+    context = _FakeContext([_FakePlatform(client)])
+    fetcher = QqOneBotApiHistoryFetcher(context)
+    request = FetchRequest(
+        platform_id="aiocqhttp",
+        group_id="168483623",
+        user_id="user-1",
+        start_at=datetime(2026, 4, 6, 0, 0, tzinfo=UTC),
+        end_at=datetime(2026, 4, 7, 0, 0, tzinfo=UTC),
+        page_size=2,
+    )
+
+    async def scenario():
+        messages = await fetcher.fetch_messages(request)
+        assert len(messages) == 2
+        assert messages[0].message_id == "200"
+        assert messages[1].message_id == "300"
+        assert client.api.calls[0][0] == "get_group_msg_history"
+        assert client.api.calls[0][1]["group_id"] == 168483623
+        assert client.api.calls[0][1]["count"] == 2
+        assert client.api.calls[1][1]["message_seq"] == 200
+
+    asyncio.run(scenario())
+
+
+def test_build_history_fetcher_prefers_qq_onebot_api_for_auto(tmp_path):
+    settings = PluginSettings(
+        db_path=tmp_path / "db.sqlite3",
+        render_dir=tmp_path / "render",
+        history_source_type="auto",
+        mock_history_path=None,
+        enable_background_sync=False,
+    )
+    context = _FakeContext([_FakePlatform(_FakeClient([{"messages": []}]))])
+
+    fetcher = build_history_fetcher(settings, context)
+
+    assert isinstance(fetcher, QqOneBotApiHistoryFetcher)

@@ -14,7 +14,7 @@ class PluginSettings:
     history_days: int = 365
     aggregate_interval_seconds: int = 300
     history_page_size: int = 200
-    history_source_type: str = "context_history"
+    history_source_type: str = "auto"
     mock_history_path: Path | None = None
     enable_background_sync: bool = True
 

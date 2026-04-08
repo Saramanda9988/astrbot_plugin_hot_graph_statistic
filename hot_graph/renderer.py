@@ -14,6 +14,9 @@ from .utils import ensure_directory
 _TITLE_FONT_SIZE = 16
 _BODY_FONT_SIZE = 12
 _KNOWN_FONT_FILENAMES = (
+    "LXGWWenKai-Regular.ttf",
+    "LXGWWenKaiLite-Regular.ttf",
+    "lxgwwenkai-regular.ttf",
     "msyh.ttc",
     "msyhbd.ttc",
     "simhei.ttf",
@@ -35,6 +38,8 @@ _KNOWN_FONT_FILENAMES = (
     "Arial.ttf",
 )
 _KNOWN_FONT_PATTERNS = (
+    "LXGW*.ttf",
+    "lxgw*.ttf",
     "NotoSansCJK-*.ttc",
     "NotoSansCJK-*.otf",
     "NotoSansSC-*.otf",
@@ -194,6 +199,7 @@ def _resolve_font_path(
 
 def _default_font_search_roots() -> list[Path]:
     roots = [
+        Path(__file__).resolve().parent.parent / "fonts",
         Path(__file__).resolve().parent / "assets" / "fonts",
         Path.home() / ".fonts",
         Path.home() / ".local" / "share" / "fonts",
