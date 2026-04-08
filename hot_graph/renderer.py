@@ -14,15 +14,10 @@ from .utils import ensure_directory
 _TITLE_FONT_SIZE = 16
 _BODY_FONT_SIZE = 12
 _KNOWN_FONT_FILENAMES = (
-    "DejaVuSans.ttf",
-    "LiberationSans-Regular.ttf",
-    "Arial.ttf",
     "msyh.ttc",
     "msyhbd.ttc",
     "simhei.ttf",
     "simsun.ttc",
-    "Deng.ttf",
-    "Dengb.ttf",
     "PingFang.ttc",
     "Hiragino Sans GB.ttc",
     "STHeiti Medium.ttc",
@@ -33,16 +28,21 @@ _KNOWN_FONT_FILENAMES = (
     "SourceHanSansSC-Regular.otf",
     "wqy-zenhei.ttc",
     "wqy-microhei.ttc",
-)
-_KNOWN_FONT_PATTERNS = (
+    "Deng.ttf",
+    "Dengb.ttf",
     "DejaVuSans.ttf",
     "LiberationSans-Regular.ttf",
+    "Arial.ttf",
+)
+_KNOWN_FONT_PATTERNS = (
     "NotoSansCJK-*.ttc",
     "NotoSansCJK-*.otf",
     "NotoSansSC-*.otf",
     "SourceHanSans*-Regular.otf",
     "SourceHanSans*-Normal.otf",
     "wqy-*.ttc",
+    "DejaVuSans.ttf",
+    "LiberationSans-Regular.ttf",
 )
 logger = logging.getLogger(__name__)
 
@@ -69,8 +69,8 @@ class HeatmapRenderer:
 
         cell = 12
         gap = 3
-        left = 64
-        top = 44
+        left = 48
+        top = 64
         grid_width = columns * (cell + gap)
         grid_height = 7 * (cell + gap)
         width = left + grid_width + 28
