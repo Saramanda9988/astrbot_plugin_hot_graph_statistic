@@ -8,7 +8,7 @@ import pytest
 
 from hot_graph.exceptions import UserNotRegisteredError
 from hot_graph.fetcher import MockJsonHistoryFetcher
-from hot_graph.models import PluginSettings
+from hot_graph.models import PluginSettings, RegisteredUser
 from hot_graph.repository import HotGraphRepository
 from hot_graph.service import HotGraphService
 
@@ -125,6 +125,14 @@ def test_sync_is_idempotent_and_preview_does_not_persist(tmp_path):
             group_id="group-1",
             user_id="user-1",
             display_name="Alice",
+        )
+        registration = RegisteredUser(
+            id=registration.id,
+            platform_id=registration.platform_id,
+            group_id=registration.group_id,
+            user_id=registration.user_id,
+            display_name=registration.display_name,
+            registered_at=datetime(2026, 4, 1, 0, 0, tzinfo=UTC),
         )
 
         sync_cutoff = datetime(2026, 4, 1, 12, 0, tzinfo=UTC)
@@ -272,5 +280,54 @@ def test_preview_and_sync_reconcile_history_when_sync_cursor_advanced_without_co
             now=datetime(2026, 4, 2, 12, 0, tzinfo=UTC),
         )
         assert formal.summary.total_messages == 1
+
+    asyncio.run(scenario())
+
+
+def test_first_sync_starts_from_registration_time(tmp_path):
+    history = [
+        {
+            "platform_id": "mock-platform",
+            "group_id": "group-1",
+            "sender_id": "user-1",
+            "sender_name": "Alice",
+            "message_id": "before-register",
+            "occurred_at": "2026-04-01T01:00:00+00:00",
+        },
+        {
+            "platform_id": "mock-platform",
+            "group_id": "group-1",
+            "sender_id": "user-1",
+            "sender_name": "Alice",
+            "message_id": "after-register-1",
+            "occurred_at": "2026-04-01T05:00:00+00:00",
+        },
+        {
+            "platform_id": "mock-platform",
+            "group_id": "group-1",
+            "sender_id": "user-1",
+            "sender_name": "Alice",
+            "message_id": "after-register-2",
+            "occurred_at": "2026-04-01T06:00:00+00:00",
+        },
+    ]
+    service, _ = _build_service(tmp_path, history)
+
+    async def scenario():
+        registration = RegisteredUser(
+            id=1,
+            platform_id="mock-platform",
+            group_id="group-1",
+            user_id="user-1",
+            display_name="Alice",
+            registered_at=datetime(2026, 4, 1, 4, 0, tzinfo=UTC),
+        )
+        sync_result = await service.sync_registration(
+            registration=registration,
+            now=datetime(2026, 4, 2, 12, 0, tzinfo=UTC),
+        )
+        assert sync_result.applied is True
+        assert sync_result.counts_applied == 2
+        assert sync_result.messages_seen == 2
 
     asyncio.run(scenario())

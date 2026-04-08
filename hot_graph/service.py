@@ -197,9 +197,9 @@ class HotGraphService:
             {day.isoformat(): count for day, count in increment.items()},
             {day.isoformat(): count for day, count in contribution_counts.items()},
         )
-        note = f"临时预览：本次结果未写入正式统计。统计口径：每 {CONTRIBUTION_MESSAGE_COUNT} 条消息记 1 次贡献。"
+        note = f"临时预览：本次结果未写入正式统计。"
         if not increment:
-            note = f"临时预览：自上次正式同步以来没有新的有效消息。统计口径：每 {CONTRIBUTION_MESSAGE_COUNT} 条消息记 1 次贡献。"
+            note = f"临时预览：自上次正式同步以来没有新的有效消息。"
         return ActivitySnapshot(
             registration=registration,
             counts_by_date=contribution_counts,
@@ -240,7 +240,7 @@ class HotGraphService:
         state,
         now,
     ) -> dict:
-        start_at = state.last_synced_at if state and state.last_synced_at else now - timedelta(days=self.settings.history_days)
+        start_at = state.last_synced_at if state and state.last_synced_at else registration.registered_at
         increment = await self._fetch_raw_counts(
             registration=registration,
             start_at=start_at,
