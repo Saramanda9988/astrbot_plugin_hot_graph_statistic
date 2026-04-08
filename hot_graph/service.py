@@ -137,7 +137,6 @@ class HotGraphService:
             summary=self._summarize_counts(contribution_counts, start_date, end_date),
             is_preview=False,
             generated_at=now,
-            note=f"统计口径：每 {CONTRIBUTION_MESSAGE_COUNT} 条消息记 1 次贡献。",
         )
 
     async def get_preview_snapshot(
