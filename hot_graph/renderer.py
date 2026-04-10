@@ -185,8 +185,11 @@ def _paste_circular_avatar(
     diameter: int,
 ) -> None:
     resized = avatar.resize((diameter, diameter), Image.LANCZOS)
-    mask = Image.new("L", (diameter, diameter), 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, diameter, diameter), fill=255)
+    ss = 4
+    ss_size = diameter * ss
+    mask_hires = Image.new("L", (ss_size, ss_size), 0)
+    ImageDraw.Draw(mask_hires).ellipse((0, 0, ss_size, ss_size), fill=255)
+    mask = mask_hires.resize((diameter, diameter), Image.LANCZOS)
     holder = Image.new("RGBA", target.size, (0, 0, 0, 0))
     holder.paste(resized, (x, y), mask)
     target.paste(holder, (0, 0), holder)
