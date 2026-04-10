@@ -1,14 +1,63 @@
-# astrbot-plugin-helloworld
+# 群热力图统计插件 (astrbot_hot_graph)
 
-AstrBot 插件模板 / A template plugin for AstrBot plugin feature
+统计已注册用户在群聊中的按日消息数，并渲染为类似 GitHub 贡献图的热力图。
+> 看看群里谁贡(水)献(群)最多
 
-> [!NOTE]
-> This repo is just a template of [AstrBot](https://github.com/AstrBotDevs/AstrBot) Plugin.
-> 
-> [AstrBot](https://github.com/AstrBotDevs/AstrBot) is an agentic assistant for both personal and group conversations. It can be deployed across dozens of mainstream instant messaging platforms, including QQ, Telegram, Feishu, DingTalk, Slack, LINE, Discord, Matrix, etc. In addition, it provides a reliable and extensible conversational AI infrastructure for individuals, developers, and teams. Whether you need a personal AI companion, an intelligent customer support agent, an automation assistant, or an enterprise knowledge base, AstrBot enables you to quickly build AI applications directly within your existing messaging workflows.
+## 功能特性
 
-# Supports
+- **GitHub 风格热力图** — 按日统计群聊消息，生成类似 GitHub Contribution Graph 的可视化图片
+- **后台定时同步** — 可配置的后台任务自动拉取并聚合群聊历史消息
+- **预览模式** — 支持临时拉取增量消息预览热力图，不写入正式统计
+- **CJK 字体自动检测** — 自动扫描系统字体目录，查找可用的中日韩字体
 
-- [AstrBot Repo](https://github.com/AstrBotDevs/AstrBot)
-- [AstrBot Plugin Development Docs (Chinese)](https://docs.astrbot.app/dev/star/plugin-new.html)
-- [AstrBot Plugin Development Docs (English)](https://docs.astrbot.app/en/dev/star/plugin-new.html)
+## 命令列表
+
+| 命令 | 说明 |
+|------|------|
+| `/registerme` | 注册当前用户在当前群聊中的热力图统计 |
+| `/showme` | 查看自己在当前群内的正式热力图 |
+| `/updateme` | 临时拉取增量消息并预览热力图，不写入正式统计 |
+| `/show @某人` | 查看被 @ 用户在当前群内的热力图（需对方已注册，@请使用im平台的@功能） |
+
+> 所有命令仅在群聊场景下可用。
+
+## 数据持久化
+
+| 路径 | 说明 |
+|------|------|
+| `data/hot_graph.db` | SQLite 数据库，存储用户注册信息、每日消息计数、同步状态 |
+| `data/hot_graph/render/` | 热力图临时图片输出目录 |
+| `data/hot_graph/avatar_cache/` | 用户头像磁盘缓存目录（24 小时过期） |
+
+> 以上路径均相对于插件目录，可通过配置项自定义 `db_path` 和 `render_dir`。
+
+## 配置项
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `db_path` | string | `data/hot_graph.db` | SQLite 数据库路径 |
+| `render_dir` | string | `data/hot_graph/render` | 热力图临时图片输出目录 |
+| `font_path` | string | *(空)* | 自定义字体文件路径（ttf/ttc/otf） |
+| `render_scale` | int | `2` | 图片渲染倍率，值越大越清晰 |
+| `timezone` | string | `Asia/Shanghai` | 统计使用的时区 |
+| `history_days` | int | `365` | 展示和初次同步的历史天数 |
+| `aggregate_interval_seconds` | int | `300` | 后台正式同步周期（秒） |
+| `history_page_size` | int | `200` | 每次读取历史消息的分页大小 |
+| `history_source_type` | string | `auto` | 历史消息来源类型：`auto` / `qq_onebot_api` / `legacy_context_history` / `mock_json` / `disabled` |
+| `mock_history_path` | string | *(空)* | 当 `history_source_type=mock_json` 时使用的 JSON 文件路径 |
+| `enable_background_sync` | bool | `true` | 是否启用后台定时正式同步 |
+
+## 支持平台
+
+- QQ（通过 aiocqhttp / NapCat / Lagrange / LLOneBot 等 OneBot v11 实现）
+
+## 依赖
+
+- `Pillow>=10`
+- `aiohttp>=3`
+
+## 相关链接
+
+- [AstrBot](https://github.com/AstrBotDevs/AstrBot)
+- [插件开发文档（中文）](https://docs.astrbot.app/dev/star/plugin-new.html)
+- [插件开发文档（English）](https://docs.astrbot.app/en/dev/star/plugin-new.html)
