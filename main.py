@@ -18,6 +18,7 @@ SyncScheduler = _hot_graph.SyncScheduler
 UserNotRegisteredError = _hot_graph.UserNotRegisteredError
 build_history_fetcher = _hot_graph.build_history_fetcher
 build_settings = _hot_graph.build_settings
+fetch_group_name = _hot_graph.fetch_group_name
 fetch_qq_avatar = _hot_graph.fetch_qq_avatar
 format_summary = _utils.format_summary
 
@@ -38,6 +39,7 @@ class HotGraphPlugin(Star):
             self.settings.render_scale,
         )
         self.avatar_cache_dir = self.settings.render_dir.parent / "avatar_cache"
+        self._group_name_cache: dict[str, str] = {}
         self.scheduler = SyncScheduler(
             self.service,
             self.settings.aggregate_interval_seconds,
@@ -122,7 +124,8 @@ class HotGraphPlugin(Star):
             return
 
         avatar_data = await fetch_qq_avatar(user_id, cache_dir=self.avatar_cache_dir)
-        image_path = self.renderer.render_snapshot(snapshot, avatar_data=avatar_data)
+        group_name = await self._fetch_group_name(platform_id, group_id)
+        image_path = self.renderer.render_snapshot(snapshot, avatar_data=avatar_data, group_name=group_name)
         event.track_temporary_local_file(str(image_path))
         yield event.plain_result(
             format_summary(
@@ -175,7 +178,8 @@ class HotGraphPlugin(Star):
             return
 
         avatar_data = await fetch_qq_avatar(user_id, cache_dir=self.avatar_cache_dir)
-        image_path = self.renderer.render_snapshot(snapshot, avatar_data=avatar_data)
+        group_name = await self._fetch_group_name(platform_id, group_id)
+        image_path = self.renderer.render_snapshot(snapshot, avatar_data=avatar_data, group_name=group_name)
         event.track_temporary_local_file(str(image_path))
         yield event.plain_result(
             format_summary(
@@ -190,6 +194,14 @@ class HotGraphPlugin(Star):
             )
         )
         yield event.image_result(str(image_path))
+
+    async def _fetch_group_name(self, platform_id: str, group_id: str) -> str | None:
+        if group_id in self._group_name_cache:
+            return self._group_name_cache[group_id]
+        name = await fetch_group_name(self.context, platform_id, group_id)
+        if name:
+            self._group_name_cache[group_id] = name
+        return name
 
     @staticmethod
     def _extract_event_scope(event: AstrMessageEvent) -> tuple[str, str, str, str]:

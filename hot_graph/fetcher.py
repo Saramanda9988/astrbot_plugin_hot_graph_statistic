@@ -263,6 +263,24 @@ class MockJsonHistoryFetcher:
         return messages
 
 
+async def fetch_group_name(context: Any, platform_id: str, group_id: str) -> str | None:
+    """通过 OneBot get_group_info 获取群名称，失败返回 None。"""
+    try:
+        client = _resolve_onebot_client(context, platform_id)
+        if client is None:
+            return None
+        result = await _call_onebot_action(client, "get_group_info", group_id=int(group_id))
+        if isinstance(result, dict):
+            name = result.get("group_name") or ""
+            if isinstance(result.get("data"), dict):
+                name = name or result["data"].get("group_name") or ""
+            if name:
+                return str(name)
+    except Exception as e:
+        logger.debug("fetch_group_name failed for group %s: %s", group_id, e)
+    return None
+
+
 def build_history_fetcher(settings: PluginSettings, context: Any | None = None) -> HistoryFetcher:
     source_type = settings.history_source_type.strip().lower()
     if source_type == "mock_json" and settings.mock_history_path is not None:

@@ -62,7 +62,12 @@ class HeatmapRenderer:
         self.render_scale = max(int(render_scale), 1)
         self._font_cache: dict[int, ImageFont.FreeTypeFont | ImageFont.ImageFont] = {}
 
-    def render_snapshot(self, snapshot: ActivitySnapshot, avatar_data: bytes | None = None) -> Path:
+    def render_snapshot(
+        self,
+        snapshot: ActivitySnapshot,
+        avatar_data: bytes | None = None,
+        group_name: str | None = None,
+    ) -> Path:
         avatar_image = None
         if avatar_data:
             try:
@@ -70,12 +75,12 @@ class HeatmapRenderer:
             except Exception:
                 logger.debug("failed to decode avatar data, skipping")
         path = self.render_dir / f"heatmap_{uuid4().hex}.png"
-        image = self._draw_heatmap(snapshot, avatar_image=avatar_image)
+        image = self._draw_heatmap(snapshot, avatar_image=avatar_image, group_name=group_name)
         dpi = 72 * self.render_scale
         image.save(path, format="PNG", dpi=(dpi, dpi))
         return path
 
-    def _draw_heatmap(self, snapshot: ActivitySnapshot, *, avatar_image: Image.Image | None = None) -> Image.Image:
+    def _draw_heatmap(self, snapshot: ActivitySnapshot, *, avatar_image: Image.Image | None = None, group_name: str | None = None) -> Image.Image:
         start_date = snapshot.summary.range_start
         end_date = snapshot.summary.range_end
         calendar_start = start_date - timedelta(days=start_date.weekday())
@@ -116,7 +121,7 @@ class HeatmapRenderer:
             font=title_font,
         )
         subtitle = texts["subtitle"].format(
-            group_id=snapshot.registration.group_id,
+            group_id=group_name or snapshot.registration.group_id,
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
