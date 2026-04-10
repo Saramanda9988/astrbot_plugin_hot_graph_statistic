@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import importlib
+import re
 from pathlib import Path
 
+import astrbot.api.message_components as Comp
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
@@ -195,6 +197,52 @@ class HotGraphPlugin(Star):
         )
         yield event.image_result(str(image_path))
 
+    @filter.command("show")
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
+    async def show(self, event: AstrMessageEvent):
+        """查看被 @ 用户在当前群内的正式热力图统计。"""
+        platform_id, group_id, _, _ = self._extract_event_scope(event)
+        if not group_id:
+            yield event.plain_result("该插件当前只支持群聊场景。")
+            return
+
+        target_user_id = self._extract_at_target(event)
+        if not target_user_id:
+            yield event.plain_result("请在命令中 @ 一位群成员，例如：/show @某人")
+            return
+
+        try:
+            snapshot = await self.service.get_formal_snapshot(
+                platform_id=platform_id,
+                group_id=group_id,
+                user_id=target_user_id,
+            )
+        except UserNotRegisteredError:
+            yield event.plain_result(f"该用户（{target_user_id}）尚未注册热力图统计。")
+            return
+        except Exception as exc:  # pragma: no cover
+            logger.error("show failed: %s", exc, exc_info=True)
+            yield event.plain_result("获取热力图失败，请稍后再试。")
+            return
+
+        avatar_data = await fetch_qq_avatar(target_user_id, cache_dir=self.avatar_cache_dir)
+        group_name = await self._fetch_group_name(platform_id, group_id)
+        image_path = self.renderer.render_snapshot(snapshot, avatar_data=avatar_data, group_name=group_name)
+        event.track_temporary_local_file(str(image_path))
+        yield event.plain_result(
+            format_summary(
+                snapshot.note,
+                snapshot.registration.display_name,
+                snapshot.summary.total_messages,
+                snapshot.summary.active_days,
+                snapshot.summary.most_active_date,
+                snapshot.summary.most_active_count,
+                snapshot.summary.range_start,
+                snapshot.summary.range_end,
+            )
+        )
+        yield event.image_result(str(image_path))
+
     async def _fetch_group_name(self, platform_id: str, group_id: str) -> str | None:
         if group_id in self._group_name_cache:
             return self._group_name_cache[group_id]
@@ -210,3 +258,17 @@ class HotGraphPlugin(Star):
         user_id = str(event.get_sender_id() or "")
         display_name = str(event.get_sender_name() or user_id or "unknown")
         return platform_id, group_id, user_id, display_name
+
+    @staticmethod
+    def _extract_at_target(event: AstrMessageEvent) -> str | None:
+        for component in event.message_obj.message:
+            if isinstance(component, Comp.At):
+                return str(component.qq)
+        raw_text = str(getattr(event, "message_str", "") or "")
+        cq_match = re.search(r"\[CQ:at,qq=(\d+)]", raw_text)
+        if cq_match:
+            return cq_match.group(1)
+        plain_match = re.search(r"@(\d{5,12})", raw_text)
+        if plain_match:
+            return plain_match.group(1)
+        return None
