@@ -6,6 +6,8 @@ from datetime import timedelta
 from pathlib import Path
 from uuid import uuid4
 
+from io import BytesIO
+
 from PIL import Image, ImageDraw, ImageFont
 
 from .models import ActivitySnapshot
@@ -60,14 +62,20 @@ class HeatmapRenderer:
         self.render_scale = max(int(render_scale), 1)
         self._font_cache: dict[int, ImageFont.FreeTypeFont | ImageFont.ImageFont] = {}
 
-    def render_snapshot(self, snapshot: ActivitySnapshot) -> Path:
+    def render_snapshot(self, snapshot: ActivitySnapshot, avatar_data: bytes | None = None) -> Path:
+        avatar_image = None
+        if avatar_data:
+            try:
+                avatar_image = Image.open(BytesIO(avatar_data)).convert("RGBA")
+            except Exception:
+                logger.debug("failed to decode avatar data, skipping")
         path = self.render_dir / f"heatmap_{uuid4().hex}.png"
-        image = self._draw_heatmap(snapshot)
+        image = self._draw_heatmap(snapshot, avatar_image=avatar_image)
         dpi = 72 * self.render_scale
         image.save(path, format="PNG", dpi=(dpi, dpi))
         return path
 
-    def _draw_heatmap(self, snapshot: ActivitySnapshot) -> Image.Image:
+    def _draw_heatmap(self, snapshot: ActivitySnapshot, *, avatar_image: Image.Image | None = None) -> Image.Image:
         start_date = snapshot.summary.range_start
         end_date = snapshot.summary.range_end
         calendar_start = start_date - timedelta(days=start_date.weekday())
@@ -91,8 +99,18 @@ class HeatmapRenderer:
         body_font = self._get_font(_BODY_FONT_SIZE * scale)
         texts = _render_texts(snapshot, use_cjk=self.font_path is not None)
 
+        # --- Avatar + title area ---
+        avatar_diameter = 30 * scale
+        margin_left = 16 * scale
+        text_x = margin_left
+        if avatar_image is not None:
+            avatar_x = margin_left
+            avatar_y = 9 * scale
+            text_x = avatar_x + avatar_diameter + 6 * scale
+            _paste_circular_avatar(image, avatar_image, avatar_x, avatar_y, avatar_diameter)
+
         draw.text(
-            (16 * scale, 12 * scale),
+            (text_x, 12 * scale),
             texts["title"],
             fill="#1f2328",
             font=title_font,
@@ -102,7 +120,7 @@ class HeatmapRenderer:
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
-        draw.text((16 * scale, 30 * scale), subtitle, fill="#656d76", font=body_font)
+        draw.text((text_x, 30 * scale), subtitle, fill="#656d76", font=body_font)
 
         for row, label in zip((0, 2, 4), ("Mon", "Wed", "Fri")):
             y = top + row * (cell + gap) + scale
@@ -157,6 +175,21 @@ class HeatmapRenderer:
             font = ImageFont.truetype(str(self.font_path), size=size)
         self._font_cache[size] = font
         return font
+
+
+def _paste_circular_avatar(
+    target: Image.Image,
+    avatar: Image.Image,
+    x: int,
+    y: int,
+    diameter: int,
+) -> None:
+    resized = avatar.resize((diameter, diameter), Image.LANCZOS)
+    mask = Image.new("L", (diameter, diameter), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, diameter, diameter), fill=255)
+    holder = Image.new("RGBA", target.size, (0, 0, 0, 0))
+    holder.paste(resized, (x, y), mask)
+    target.paste(holder, (0, 0), holder)
 
 
 def _resolve_color(count: int, max_count: int) -> str:

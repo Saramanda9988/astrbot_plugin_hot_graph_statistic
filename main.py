@@ -18,6 +18,7 @@ SyncScheduler = _hot_graph.SyncScheduler
 UserNotRegisteredError = _hot_graph.UserNotRegisteredError
 build_history_fetcher = _hot_graph.build_history_fetcher
 build_settings = _hot_graph.build_settings
+fetch_qq_avatar = _hot_graph.fetch_qq_avatar
 format_summary = _utils.format_summary
 
 
@@ -119,7 +120,8 @@ class HotGraphPlugin(Star):
             yield event.plain_result("获取热力图失败，请稍后再试。")
             return
 
-        image_path = self.renderer.render_snapshot(snapshot)
+        avatar_data = await fetch_qq_avatar(user_id)
+        image_path = self.renderer.render_snapshot(snapshot, avatar_data=avatar_data)
         event.track_temporary_local_file(str(image_path))
         yield event.plain_result(
             format_summary(
@@ -171,7 +173,8 @@ class HotGraphPlugin(Star):
             yield event.plain_result("临时刷新失败，请稍后再试。")
             return
 
-        image_path = self.renderer.render_snapshot(snapshot)
+        avatar_data = await fetch_qq_avatar(user_id)
+        image_path = self.renderer.render_snapshot(snapshot, avatar_data=avatar_data)
         event.track_temporary_local_file(str(image_path))
         yield event.plain_result(
             format_summary(

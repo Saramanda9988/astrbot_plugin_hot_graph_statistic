@@ -93,3 +93,35 @@ def test_renderer_uses_ascii_fallback_text_without_cjk_font():
 
     assert texts["title"] == " _Official activity heatmap" or texts["title"] == "_Official activity heatmap"
     assert texts["note"] == "Preview only: this result is not written to formal stats."
+
+
+def test_renderer_with_avatar_data(tmp_path):
+    from io import BytesIO
+    from PIL import Image
+
+    avatar_img = Image.new("RGBA", (100, 100), (255, 0, 0, 255))
+    buf = BytesIO()
+    avatar_img.save(buf, format="PNG")
+    avatar_bytes = buf.getvalue()
+
+    renderer = HeatmapRenderer(tmp_path, font_path=None, render_scale=2)
+    output = renderer.render_snapshot(_build_snapshot(), avatar_data=avatar_bytes)
+
+    assert output.exists()
+    assert output.stat().st_size > 0
+
+
+def test_renderer_with_invalid_avatar_data(tmp_path):
+    renderer = HeatmapRenderer(tmp_path, font_path=None, render_scale=2)
+    output = renderer.render_snapshot(_build_snapshot(), avatar_data=b"not-an-image")
+
+    assert output.exists()
+    assert output.stat().st_size > 0
+
+
+def test_renderer_without_avatar_data(tmp_path):
+    renderer = HeatmapRenderer(tmp_path, font_path=None, render_scale=2)
+    output = renderer.render_snapshot(_build_snapshot(), avatar_data=None)
+
+    assert output.exists()
+    assert output.stat().st_size > 0

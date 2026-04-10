@@ -1,3 +1,4 @@
+from .avatar import fetch_qq_avatar
 from .exceptions import HistorySourceUnavailableError, UserNotRegisteredError
 from .fetcher import build_history_fetcher
 from .models import PluginSettings
@@ -17,4 +18,5 @@ __all__ = [
     "UserNotRegisteredError",
     "build_history_fetcher",
     "build_settings",
+    "fetch_qq_avatar",
 ]
