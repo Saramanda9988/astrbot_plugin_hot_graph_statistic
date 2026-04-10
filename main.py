@@ -37,6 +37,7 @@ class HotGraphPlugin(Star):
             self.settings.font_path,
             self.settings.render_scale,
         )
+        self.avatar_cache_dir = self.settings.render_dir.parent / "avatar_cache"
         self.scheduler = SyncScheduler(
             self.service,
             self.settings.aggregate_interval_seconds,
@@ -120,7 +121,7 @@ class HotGraphPlugin(Star):
             yield event.plain_result("获取热力图失败，请稍后再试。")
             return
 
-        avatar_data = await fetch_qq_avatar(user_id)
+        avatar_data = await fetch_qq_avatar(user_id, cache_dir=self.avatar_cache_dir)
         image_path = self.renderer.render_snapshot(snapshot, avatar_data=avatar_data)
         event.track_temporary_local_file(str(image_path))
         yield event.plain_result(
@@ -173,7 +174,7 @@ class HotGraphPlugin(Star):
             yield event.plain_result("临时刷新失败，请稍后再试。")
             return
 
-        avatar_data = await fetch_qq_avatar(user_id)
+        avatar_data = await fetch_qq_avatar(user_id, cache_dir=self.avatar_cache_dir)
         image_path = self.renderer.render_snapshot(snapshot, avatar_data=avatar_data)
         event.track_temporary_local_file(str(image_path))
         yield event.plain_result(
