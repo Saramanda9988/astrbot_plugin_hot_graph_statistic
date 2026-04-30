@@ -37,7 +37,8 @@ python scripts/debug_render.py
 ```powershell
 python scripts/debug_render.py --preview
 python scripts/debug_render.py --name "测试用户" --group-name "测试群"
-python scripts/debug_render.py --days 180 --scale 3 -o data/debug_render/my_preview.png
+python scripts/debug_render.py --theme dark
+python scripts/debug_render.py --days 180 --scale 3 --theme dark -o data/debug_render/my_preview.png
 ```
 
 ## 数据持久化
@@ -60,6 +61,7 @@ python scripts/debug_render.py --days 180 --scale 3 -o data/debug_render/my_prev
 | `render_dir` | string | `render` | 热力图临时图片输出目录；相对路径基于 `data/plugin_data/astrbot_hot_graph/` |
 | `font_path` | string | *(空)* | 自定义字体文件路径（ttf/ttc/otf） |
 | `render_scale` | int | `2` | 图片渲染倍率，值越大越清晰 |
+| `render_theme` | string | `light` | 渲染主题：`light` / `dark` |
 | `timezone` | string | `Asia/Shanghai` | 统计使用的时区 |
 | `history_days` | int | `365` | 展示和初次同步的历史天数 |
 | `aggregate_interval_seconds` | int | `300` | 后台正式同步周期（秒） |
