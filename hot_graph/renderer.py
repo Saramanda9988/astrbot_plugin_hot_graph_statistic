@@ -15,6 +15,7 @@ from .utils import ensure_directory
 
 _TITLE_FONT_SIZE = 16
 _BODY_FONT_SIZE = 12
+_META_FONT_SIZE = 11
 _KNOWN_FONT_FILENAMES = (
     "LXGWWenKai-Regular.ttf",
     "LXGWWenKaiLite-Regular.ttf",
@@ -51,6 +52,14 @@ _KNOWN_FONT_PATTERNS = (
     "DejaVuSans.ttf",
     "LiberationSans-Regular.ttf",
 )
+_CANVAS_BACKGROUND = "#ffffff"
+_CANVAS_TEXT = "#1f2328"
+_CANVAS_MUTED = "#656d76"
+_CARD_BACKGROUND = "#ffffff"
+_CARD_BORDER = "#d0d7de"
+_CARD_TEXT = "#24292f"
+_CARD_MUTED = "#57606a"
+_CARD_PREVIEW = "#8250df"
 logger = logging.getLogger(__name__)
 
 
@@ -90,46 +99,94 @@ class HeatmapRenderer:
         scale = self.render_scale
         cell = 12 * scale
         gap = 3 * scale
-        left = 48 * scale
-        top = 64 * scale
-        grid_width = columns * (cell + gap)
-        grid_height = 7 * (cell + gap)
-        width = left + grid_width + 28 * scale
-        height = top + grid_height + 82 * scale
-
-        image = Image.new("RGB", (width, height), "#ffffff")
-        draw = ImageDraw.Draw(image)
-
         title_font = self._get_font(_TITLE_FONT_SIZE * scale)
         body_font = self._get_font(_BODY_FONT_SIZE * scale)
+        meta_font = self._get_font(_META_FONT_SIZE * scale)
         texts = _render_texts(snapshot, use_cjk=self.font_path is not None)
-
-        # --- Avatar + title area ---
-        avatar_diameter = 30 * scale
-        margin_left = 16 * scale
-        text_x = margin_left
-        if avatar_image is not None:
-            avatar_x = margin_left
-            avatar_y = 9 * scale
-            text_x = avatar_x + avatar_diameter + 6 * scale
-            _paste_circular_avatar(image, avatar_image, avatar_x, avatar_y, avatar_diameter)
-
-        draw.text(
-            (text_x, 12 * scale),
-            texts["title"],
-            fill="#1f2328",
-            font=title_font,
-        )
         subtitle = texts["subtitle"].format(
             group_id=group_name or snapshot.registration.group_id,
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
-        draw.text((text_x, 30 * scale), subtitle, fill="#656d76", font=body_font)
 
+        measure = ImageDraw.Draw(Image.new("RGB", (1, 1), _CANVAS_BACKGROUND))
+        title_size = _measure_text(measure, texts["title"], title_font)
+        subtitle_size = _measure_text(measure, subtitle, body_font)
+        contrib_text = texts["contrib"].format(total=snapshot.summary.total_messages)
+        contrib_size = _measure_text(measure, contrib_text, body_font)
+        active_text = texts["active_days"].format(days=snapshot.summary.active_days)
+        active_size = _measure_text(measure, active_text, body_font)
+        note_text = texts["note"] or ""
+        note_size = _measure_text(measure, note_text, meta_font)
+
+        page_margin_x = 16 * scale
+        page_margin_y = 12 * scale
+        avatar_diameter = 30 * scale
+        avatar_gap = 8 * scale
+        header_gap = 14 * scale
+        contrib_gap = 10 * scale
+        card_padding_x = 18 * scale
+        card_padding_top = 14 * scale
+        card_padding_bottom = 14 * scale
+        month_label_band = 18 * scale
+        footer_band = 22 * scale
+        weekday_band = 44 * scale
+        corner_radius = 10 * scale
+
+        grid_width = columns * cell + max(columns - 1, 0) * gap
+        grid_height = 7 * cell + 6 * gap
+        base_card_width = card_padding_x * 2 + weekday_band + grid_width
+        footer_content_width = note_size[0] + active_size[0] + 32 * scale
+        card_width = max(base_card_width, card_padding_x * 2 + footer_content_width)
+        card_height = card_padding_top + month_label_band + grid_height + footer_band + card_padding_bottom
+
+        header_left = page_margin_x
+        text_x = header_left
+        if avatar_image is not None:
+            text_x += avatar_diameter + avatar_gap
+        header_width = max(title_size[0], subtitle_size[0]) + (text_x - header_left)
+        header_height = max(avatar_diameter, title_size[1] + subtitle_size[1] + 6 * scale)
+        card_x = page_margin_x
+        contrib_y = page_margin_y + header_height + header_gap
+        card_y = contrib_y + contrib_size[1] + contrib_gap
+
+        width = max(card_x + card_width + page_margin_x, header_left + header_width + page_margin_x)
+        height = card_y + card_height + page_margin_y
+
+        image = Image.new("RGB", (width, height), _CANVAS_BACKGROUND)
+        draw = ImageDraw.Draw(image)
+
+        if avatar_image is not None:
+            avatar_x = header_left
+            avatar_y = page_margin_y + max((header_height - avatar_diameter) // 2, 0)
+            _paste_circular_avatar(image, avatar_image, avatar_x, avatar_y, avatar_diameter)
+
+        title_y = page_margin_y
+        draw.text(
+            (text_x, title_y),
+            texts["title"],
+            fill=_CANVAS_TEXT,
+            font=title_font,
+        )
+        subtitle_y = title_y + title_size[1] + 6 * scale
+        draw.text((text_x, subtitle_y), subtitle, fill=_CANVAS_MUTED, font=body_font)
+        draw.text((card_x, contrib_y), contrib_text, fill=_CANVAS_TEXT, font=body_font)
+
+        card_right = card_x + card_width
+        card_bottom = card_y + card_height
+        draw.rounded_rectangle(
+            (card_x, card_y, card_right, card_bottom),
+            radius=corner_radius,
+            fill=_CARD_BACKGROUND,
+            outline=_CARD_BORDER,
+            width=max(scale, 1),
+        )
+
+        grid_left = card_x + card_padding_x + weekday_band
+        grid_top = card_y + card_padding_top + month_label_band
         for row, label in zip((0, 2, 4), ("Mon", "Wed", "Fri")):
-            y = top + row * (cell + gap) + scale
-            draw.text((16 * scale, y), label, fill="#656d76", font=body_font)
+            y = grid_top + row * (cell + gap) + scale
+            draw.text((card_x + card_padding_x, y), label, fill=_CARD_MUTED, font=meta_font)
 
         max_count = max(snapshot.counts_by_date.values(), default=0)
         current = calendar_start
@@ -138,34 +195,32 @@ class HeatmapRenderer:
         for index in range(total_days):
             col = index // 7
             row = index % 7
-            x = left + col * (cell + gap)
-            y = top + row * (cell + gap)
+            x = grid_left + col * (cell + gap)
+            y = grid_top + row * (cell + gap)
             count = snapshot.counts_by_date.get(current, 0)
             color = _resolve_color(count, max_count)
-            outline = "#d0d7de" if current < start_date or current > end_date else color
-            draw.rounded_rectangle((x, y, x + cell, y + cell), radius=2 * scale, fill=color, outline=outline)
+            draw.rounded_rectangle(
+                (x, y, x + cell, y + cell),
+                radius=max(2 * scale, 2),
+                fill=color,
+                outline=color,
+            )
             if current.day == 1:
                 month_labels.setdefault(col, current.strftime("%b"))
             current += timedelta(days=1)
 
         for col, label in month_labels.items():
-            x = left + col * (cell + gap)
-            draw.text((x, top - 14 * scale), label, fill="#656d76", font=body_font)
+            x = grid_left + col * (cell + gap)
+            draw.text((x, grid_top - month_label_band), label, fill=_CARD_MUTED, font=body_font)
 
-        summary_y = top + grid_height + 20 * scale
-        draw.text((16 * scale, summary_y), texts["contrib"].format(total=snapshot.summary.total_messages), fill="#1f2328", font=body_font)
-        draw.text((130 * scale, summary_y), texts["active_days"].format(days=snapshot.summary.active_days), fill="#1f2328", font=body_font)
-        if snapshot.summary.most_active_date is not None:
-            hottest = texts["hottest"].format(
-                date=snapshot.summary.most_active_date.isoformat(),
-                count=snapshot.summary.most_active_count,
-            )
-        else:
-            hottest = texts["hottest_empty"]
-        draw.text((16 * scale, summary_y + 14 * scale), hottest, fill="#1f2328", font=body_font)
-        note_text = texts["note"]
+        footer_top = grid_top + grid_height + 10 * scale
+        note_color = _CARD_PREVIEW if snapshot.is_preview else _CARD_MUTED
         if note_text:
-            draw.text((16 * scale, summary_y + 28 * scale), note_text, fill="#8250df", font=body_font)
+            note_y = footer_top + max((footer_band - note_size[1]) // 2, 0)
+            draw.text((card_x + card_padding_x, note_y), note_text, fill=note_color, font=meta_font)
+        active_x = card_right - card_padding_x - active_size[0]
+        active_y = footer_top + max((footer_band - active_size[1]) // 2, 0)
+        draw.text((active_x, active_y), active_text, fill=_CARD_TEXT, font=body_font)
 
         return image
 
@@ -268,11 +323,9 @@ def _render_texts(snapshot: ActivitySnapshot, *, use_cjk: bool) -> dict[str, str
         return {
             "title": f"{snapshot.registration.display_name} 的群聊热力图",
             "subtitle": "{group_id} | {start_date} ~ {end_date}",
-            "contrib": "Contrib: {total}",
+            "contrib": "{total} contributions in the last year",
             "active_days": "Active days: {days}",
-            "hottest": "Hottest: {date} ({count})",
-            "hottest_empty": "Hottest: n/a",
-            "note": snapshot.note,
+            "note": snapshot.note or "统计规则：每 5 条消息记作 1 次贡献",
         }
 
     safe_name = _ascii_fallback(snapshot.registration.display_name, fallback=snapshot.registration.user_id)
@@ -282,8 +335,6 @@ def _render_texts(snapshot: ActivitySnapshot, *, use_cjk: bool) -> dict[str, str
         "subtitle": "Group {group_id} | {start_date} ~ {end_date}",
         "contrib": "Contrib: {total}",
         "active_days": "Active days: {days}",
-        "hottest": "Hottest: {date} ({count})",
-        "hottest_empty": "Hottest: n/a",
         "note": note,
     }
 
@@ -301,3 +352,14 @@ def _ascii_note(snapshot: ActivitySnapshot) -> str:
     if snapshot.is_preview:
         return "Preview only: this result is not written to formal stats."
     return "Rule: 1 contribution per 5 messages."
+
+
+def _measure_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+) -> tuple[int, int]:
+    if not text:
+        return 0, 0
+    left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+    return right - left, bottom - top

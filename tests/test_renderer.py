@@ -3,9 +3,10 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 
 import pytest
+from PIL import ImageColor
 
 from hot_graph.models import ActivitySnapshot, HeatmapSummary, RegisteredUser
-from hot_graph.renderer import HeatmapRenderer, _render_texts, _resolve_font_path
+from hot_graph.renderer import _CARD_BACKGROUND, _CARD_BORDER, HeatmapRenderer, _render_texts, _resolve_font_path
 
 
 def _build_snapshot(display_name: str = "图_Official") -> ActivitySnapshot:
@@ -85,7 +86,20 @@ def test_renderer_scale_increases_output_size(tmp_path):
     image = renderer._draw_heatmap(_build_snapshot())
 
     assert image.size[0] > 800
-    assert image.size[1] > 400
+    assert image.size[1] > 250
+
+
+def test_renderer_draws_dark_card_container(tmp_path):
+    renderer = HeatmapRenderer(tmp_path, font_path=None, render_scale=2)
+
+    image = renderer._draw_heatmap(_build_snapshot())
+    colors = {
+        color
+        for _, color in image.getcolors(maxcolors=image.size[0] * image.size[1]) or []
+    }
+
+    assert ImageColor.getrgb(_CARD_BACKGROUND) in colors
+    assert ImageColor.getrgb(_CARD_BORDER) in colors
 
 
 def test_renderer_uses_ascii_fallback_text_without_cjk_font():

@@ -33,7 +33,7 @@ migrate_legacy_db_if_needed = _utils.migrate_legacy_db_if_needed
 PLUGIN_NAME = "astrbot_hot_graph"
 
 
-@register(PLUGIN_NAME, "LunaRain_079", "群热力图统计插件", "0.1.11")
+@register(PLUGIN_NAME, "LunaRain_079", "群热力图统计插件", "0.1.14")
 class HotGraphPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
