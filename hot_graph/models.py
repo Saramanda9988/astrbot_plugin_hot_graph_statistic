@@ -11,6 +11,7 @@ class PluginSettings:
     render_dir: Path
     font_path: Path | None = None
     render_scale: int = 2
+    render_theme: str = "light"
     timezone: str = "Asia/Shanghai"
     history_days: int = 365
     aggregate_interval_seconds: int = 300

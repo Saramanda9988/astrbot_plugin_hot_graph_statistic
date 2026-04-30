@@ -94,6 +94,7 @@ def build_settings(config: dict | None, base_dir: Path, storage_dir: Path) -> Pl
         render_dir=render_dir,
         font_path=font_path,
         render_scale=max(int(config.get("render_scale") or 2), 1),
+        render_theme=str(config.get("render_theme") or "light").strip().lower() or "light",
         timezone=str(config.get("timezone") or "Asia/Shanghai"),
         history_days=max(int(config.get("history_days") or 365), 1),
         aggregate_interval_seconds=max(int(config.get("aggregate_interval_seconds") or 300), 30),

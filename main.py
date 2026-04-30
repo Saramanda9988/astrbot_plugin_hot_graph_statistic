@@ -33,7 +33,7 @@ migrate_legacy_db_if_needed = _utils.migrate_legacy_db_if_needed
 PLUGIN_NAME = "astrbot_hot_graph"
 
 
-@register(PLUGIN_NAME, "LunaRain_079", "群热力图统计插件", "0.1.14")
+@register(PLUGIN_NAME, "LunaRain_079", "群热力图统计插件", "0.1.15")
 class HotGraphPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -53,6 +53,7 @@ class HotGraphPlugin(Star):
             self.settings.render_dir,
             self.settings.font_path,
             self.settings.render_scale,
+            self.settings.render_theme,
         )
         self.avatar_cache_dir = self.settings.render_dir.parent / "avatar_cache"
         self._group_name_cache: dict[str, str] = {}
@@ -75,11 +76,12 @@ class HotGraphPlugin(Star):
                 self.settings.db_path,
             )
         logger.info(
-            "hot graph settings: plugin_data_dir=%s db_path=%s render_dir=%s render_scale=%s timezone=%s history_days=%s page_size=%s history_source_type=%s background_sync=%s",
+            "hot graph settings: plugin_data_dir=%s db_path=%s render_dir=%s render_scale=%s render_theme=%s timezone=%s history_days=%s page_size=%s history_source_type=%s background_sync=%s",
             self.plugin_data_dir,
             self.settings.db_path,
             self.settings.render_dir,
             self.settings.render_scale,
+            self.settings.render_theme,
             self.settings.timezone,
             self.settings.history_days,
             self.settings.history_page_size,

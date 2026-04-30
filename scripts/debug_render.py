@@ -14,6 +14,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from hot_graph.models import ActivitySnapshot, HeatmapSummary, RegisteredUser
+from hot_graph.render_templates import get_theme_names
 from hot_graph.renderer import HeatmapRenderer
 
 
@@ -57,6 +58,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=2,
         help="Renderer scale passed to HeatmapRenderer.",
+    )
+    parser.add_argument(
+        "--theme",
+        default="light",
+        choices=get_theme_names(),
+        help="Render theme name.",
     )
     parser.add_argument(
         "--seed",
@@ -191,7 +198,11 @@ def main() -> int:
 
     snapshot = build_snapshot(args)
     avatar_data = None if args.no_avatar else build_fake_avatar(snapshot.registration.display_name)
-    renderer = HeatmapRenderer(render_dir=render_dir, render_scale=max(int(args.scale), 1))
+    renderer = HeatmapRenderer(
+        render_dir=render_dir,
+        render_scale=max(int(args.scale), 1),
+        render_theme=str(args.theme),
+    )
     temp_output = renderer.render_snapshot(
         snapshot,
         avatar_data=avatar_data,

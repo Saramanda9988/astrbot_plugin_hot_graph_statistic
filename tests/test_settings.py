@@ -13,6 +13,7 @@ def test_build_settings_stores_default_persistent_files_under_plugin_data(tmp_pa
 
     assert settings.db_path == (storage_dir / "hot_graph.db").resolve()
     assert settings.render_dir == (storage_dir / "render").resolve()
+    assert settings.render_theme == "light"
 
 
 def test_build_settings_maps_legacy_default_relative_values_to_new_plugin_data_paths(tmp_path):
@@ -35,6 +36,7 @@ def test_build_settings_keeps_non_storage_relative_paths_under_plugin_root(tmp_p
     config = {
         "db_path": "custom/hot_graph.db",
         "render_dir": "cache/render",
+        "render_theme": "dark",
         "font_path": "fonts/test.ttf",
         "mock_history_path": "fixtures/history.json",
     }
@@ -43,6 +45,7 @@ def test_build_settings_keeps_non_storage_relative_paths_under_plugin_root(tmp_p
 
     assert settings.db_path == (storage_dir / "custom" / "hot_graph.db").resolve()
     assert settings.render_dir == (storage_dir / "cache" / "render").resolve()
+    assert settings.render_theme == "dark"
     assert settings.font_path == (base_dir / "fonts" / "test.ttf").resolve()
     assert settings.mock_history_path == (base_dir / "fixtures" / "history.json").resolve()
 
