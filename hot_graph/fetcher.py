@@ -22,6 +22,8 @@ _QQ_ONEBOT_PLATFORM_ALIASES = {
     "llbot",
     "llonebot",
 }
+_LLBOT_APP_NAMES = {"llonebot"}
+_LLBOT_CLIENT_CACHE: dict[int, bool] = {}
 
 
 @dataclass(frozen=True)
@@ -49,13 +51,12 @@ class QqOneBotApiHistoryFetcher:
         self.context = context
 
     async def fetch_messages(self, request: FetchRequest) -> list[HistoryMessage]:
-        if not _is_qq_onebot_platform(request.platform_id):
-            raise HistorySourceUnavailableError(
-                f"当前仅支持 QQ OneBot 历史拉取，收到平台: {request.platform_id or 'unknown'}"
-            )
-
-        client = _resolve_onebot_client(self.context, request.platform_id)
+        client = await _resolve_requested_onebot_client(self.context, request.platform_id)
         if client is None:
+            if not _is_qq_onebot_platform(request.platform_id):
+                raise HistorySourceUnavailableError(
+                    f"当前仅支持 QQ OneBot 历史拉取，收到平台: {request.platform_id or 'unknown'}"
+                )
             raise HistorySourceUnavailableError("未找到可用的 QQ OneBot 客户端。")
 
         start_timestamp = int(request.start_at.timestamp())
@@ -266,7 +267,7 @@ class MockJsonHistoryFetcher:
 async def fetch_group_name(context: Any, platform_id: str, group_id: str) -> str | None:
     """通过 OneBot get_group_info 获取群名称，失败返回 None。"""
     try:
-        client = _resolve_onebot_client(context, platform_id)
+        client = await _resolve_requested_onebot_client(context, platform_id)
         if client is None:
             return None
         result = await _call_onebot_action(client, "get_group_info", group_id=int(group_id))
@@ -348,22 +349,42 @@ def _history_scope_candidates(request: FetchRequest) -> list[str]:
     return deduped
 
 
-def _resolve_onebot_client(context: Any, platform_id: str | None) -> Any | None:
+async def _resolve_requested_onebot_client(context: Any, platform_id: str | None) -> Any | None:
     platform_id = str(platform_id or "").strip().lower()
+    candidates = _list_onebot_platform_candidates(context)
+    logger.debug(
+        "hot graph qq history resolve client: platform_id=%s platform_count=%s",
+        platform_id,
+        len(candidates),
+    )
+    fallback_client = candidates[0][1] if candidates else None
+
+    for meta_names, client in candidates:
+        if platform_id and _platform_matches_requested_id(platform_id, meta_names):
+            return client
+
+    if _is_qq_onebot_platform(platform_id):
+        return fallback_client
+
+    if len(candidates) == 1 and await _is_llbot_client(candidates[0][1]):
+        logger.info(
+            "hot graph qq history matched custom platform to single LLBot client: requested_platform=%s",
+            platform_id or "unknown",
+        )
+        return candidates[0][1]
+
+    return None
+
+
+def _list_onebot_platform_candidates(context: Any) -> list[tuple[list[str], Any]]:
     platform_manager = getattr(context, "platform_manager", None)
     get_insts = getattr(platform_manager, "get_insts", None)
     if not callable(get_insts):
         logger.debug("hot graph qq history resolve client failed: context.platform_manager.get_insts unavailable")
-        return None
+        return []
 
     platforms = list(get_insts() or [])
-    logger.debug(
-        "hot graph qq history resolve client: platform_id=%s platform_count=%s",
-        platform_id,
-        len(platforms),
-    )
-    fallback_client = None
-
+    candidates: list[tuple[list[str], Any]] = []
     for platform in platforms:
         meta_names = _platform_meta_names(platform)
         client = _platform_client(platform)
@@ -374,14 +395,41 @@ def _resolve_onebot_client(context: Any, platform_id: str | None) -> Any | None:
         )
         if client is None or not _is_onebot_client(client):
             continue
-        if fallback_client is None:
-            fallback_client = client
-        if not platform_id:
-            continue
-        if _platform_matches_requested_id(platform_id, meta_names):
-            return client
+        candidates.append((meta_names, client))
 
-    return fallback_client
+    return candidates
+
+
+async def _is_llbot_client(client: Any) -> bool:
+    cache_key = id(client)
+    if cache_key in _LLBOT_CLIENT_CACHE:
+        return _LLBOT_CLIENT_CACHE[cache_key]
+
+    is_llbot = False
+    try:
+        result = await _call_onebot_action(client, "get_version_info")
+        app_name = _extract_onebot_app_name(result)
+        is_llbot = app_name in _LLBOT_APP_NAMES
+        if is_llbot:
+            logger.info("hot graph qq history detected LLBot client via get_version_info")
+    except Exception:
+        is_llbot = False
+
+    _LLBOT_CLIENT_CACHE[cache_key] = is_llbot
+    return is_llbot
+
+
+def _extract_onebot_app_name(result: Any) -> str | None:
+    if isinstance(result, dict):
+        app_name = result.get("app_name")
+        if isinstance(app_name, str):
+            return app_name.strip().lower()
+        data = result.get("data")
+        if isinstance(data, dict):
+            nested_app_name = data.get("app_name")
+            if isinstance(nested_app_name, str):
+                return nested_app_name.strip().lower()
+    return None
 
 
 def _platform_meta_names(platform: Any) -> list[str]:

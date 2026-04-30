@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from hot_graph.fetcher import (
     ContextHistoryFetcher,
     FetchRequest,
+    HistorySourceUnavailableError,
     QqOneBotApiHistoryFetcher,
     build_history_fetcher,
 )
@@ -239,5 +240,78 @@ def test_qq_onebot_history_fetcher_accepts_napcat_platform_id():
         messages = await fetcher.fetch_messages(request)
         assert messages == []
         assert client.api.calls[0][0] == "get_group_msg_history"
+
+    asyncio.run(scenario())
+
+
+def test_qq_onebot_history_fetcher_accepts_custom_onebot_platform_id():
+    responses = [{"messages": []}]
+    client = _FakeClient(responses)
+    context = _FakeContext([_FakePlatform(client, meta=_FakePlatformMeta(id="luna", name="luna", type="aiocqhttp"))])
+    fetcher = QqOneBotApiHistoryFetcher(context)
+    request = FetchRequest(
+        platform_id="luna",
+        group_id="168483623",
+        user_id="user-1",
+        start_at=datetime(2026, 4, 6, 0, 0, tzinfo=UTC),
+        end_at=datetime(2026, 4, 7, 0, 0, tzinfo=UTC),
+        page_size=20,
+    )
+
+    async def scenario():
+        messages = await fetcher.fetch_messages(request)
+        assert messages == []
+        assert client.api.calls[0][0] == "get_group_msg_history"
+
+    asyncio.run(scenario())
+
+
+def test_qq_onebot_history_fetcher_accepts_single_llbot_client_with_custom_platform_id():
+    responses = [
+        {"data": {"app_name": "LLOneBot"}},
+        {"messages": []},
+    ]
+    client = _FakeClient(responses)
+    context = _FakeContext([_FakePlatform(client, meta=_FakePlatformMeta(id="opaque", name="opaque", type="opaque"))])
+    fetcher = QqOneBotApiHistoryFetcher(context)
+    request = FetchRequest(
+        platform_id="luna",
+        group_id="168483623",
+        user_id="user-1",
+        start_at=datetime(2026, 4, 6, 0, 0, tzinfo=UTC),
+        end_at=datetime(2026, 4, 7, 0, 0, tzinfo=UTC),
+        page_size=20,
+    )
+
+    async def scenario():
+        messages = await fetcher.fetch_messages(request)
+        assert messages == []
+        assert client.api.calls[0][0] == "get_version_info"
+        assert client.api.calls[1][0] == "get_group_msg_history"
+
+    asyncio.run(scenario())
+
+
+def test_qq_onebot_history_fetcher_rejects_unknown_non_onebot_platform_id():
+    responses = [{"app_name": "NapCat"}]
+    client = _FakeClient(responses)
+    context = _FakeContext([_FakePlatform(client, meta=_FakePlatformMeta(id="luna", name="luna", type="aiocqhttp"))])
+    fetcher = QqOneBotApiHistoryFetcher(context)
+    request = FetchRequest(
+        platform_id="telegram-custom",
+        group_id="168483623",
+        user_id="user-1",
+        start_at=datetime(2026, 4, 6, 0, 0, tzinfo=UTC),
+        end_at=datetime(2026, 4, 7, 0, 0, tzinfo=UTC),
+        page_size=20,
+    )
+
+    async def scenario():
+        try:
+            await fetcher.fetch_messages(request)
+        except HistorySourceUnavailableError as exc:
+            assert "telegram-custom" in str(exc)
+        else:  # pragma: no cover
+            raise AssertionError("expected HistorySourceUnavailableError")
 
     asyncio.run(scenario())
