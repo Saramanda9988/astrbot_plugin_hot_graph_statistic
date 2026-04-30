@@ -223,7 +223,7 @@ def render_texts(snapshot: ActivitySnapshot, *, use_cjk: bool) -> dict[str, str 
             "subtitle": "{group_id} | {start_date} ~ {end_date}",
             "contrib": "{total} contributions in the last year",
             "active_days": "Active days: {days}",
-            "note": snapshot.note or "统计规则：每 5 条消息记作 1 次贡献",
+            "note": snapshot.note or "",
         }
 
     safe_name = ascii_fallback(snapshot.registration.display_name, fallback=snapshot.registration.user_id)
