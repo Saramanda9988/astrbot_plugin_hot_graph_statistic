@@ -26,18 +26,20 @@
 
 | 路径 | 说明 |
 |------|------|
-| `data/hot_graph.db` | SQLite 数据库，存储用户注册信息、每日消息计数、同步状态 |
-| `data/hot_graph/render/` | 热力图临时图片输出目录 |
-| `data/hot_graph/avatar_cache/` | 用户头像磁盘缓存目录（24 小时过期） |
+| `data/plugin_data/astrbot_hot_graph/hot_graph.db` | SQLite 数据库，存储用户注册信息、每日消息计数、同步状态 |
+| `data/plugin_data/astrbot_hot_graph/render/` | 热力图临时图片输出目录 |
+| `data/plugin_data/astrbot_hot_graph/avatar_cache/` | 用户头像磁盘缓存目录（24 小时过期） |
 
-> 以上路径均相对于插件目录，可通过配置项自定义 `db_path` 和 `render_dir`。
+> 默认持久化目录位于 AstrBot 的 `plugin_data` 下，卸载插件时只要不勾选“删除持久化数据”，重装后会继续复用这些数据。
+>
+> 从旧版本升级时，如果检测到插件源码目录下的旧 `data/hot_graph.db`，会在首次启动时自动迁移到新的持久化目录。
 
 ## 配置项
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `db_path` | string | `data/hot_graph.db` | SQLite 数据库路径 |
-| `render_dir` | string | `data/hot_graph/render` | 热力图临时图片输出目录 |
+| `db_path` | string | `hot_graph.db` | SQLite 数据库路径；相对路径基于 `data/plugin_data/astrbot_hot_graph/` |
+| `render_dir` | string | `render` | 热力图临时图片输出目录；相对路径基于 `data/plugin_data/astrbot_hot_graph/` |
 | `font_path` | string | *(空)* | 自定义字体文件路径（ttf/ttc/otf） |
 | `render_scale` | int | `2` | 图片渲染倍率，值越大越清晰 |
 | `timezone` | string | `Asia/Shanghai` | 统计使用的时区 |

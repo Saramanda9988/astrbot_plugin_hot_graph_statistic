@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import shutil
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .models import PluginSettings
+
+DEFAULT_DB_FILENAME = "hot_graph.db"
+DEFAULT_RENDER_DIRNAME = "render"
+LEGACY_DEFAULT_DB_PATH = "data/hot_graph.db"
+LEGACY_DEFAULT_RENDER_DIR = "data/hot_graph/render"
 
 
 def utc_now() -> datetime:
@@ -47,16 +53,36 @@ def date_window(now: datetime, timezone_name: str, history_days: int) -> tuple[d
 def normalize_path(base_dir: Path, raw: str) -> Path:
     candidate = Path(raw)
     if candidate.is_absolute():
-        return candidate
+        return candidate.resolve()
     return (base_dir / candidate).resolve()
 
 
-def build_settings(config: dict | None, base_dir: Path) -> PluginSettings:
+def normalize_storage_setting(raw: str, *, legacy_default: str, current_default: str) -> str:
+    if not raw:
+        return current_default
+    candidate = Path(raw)
+    if not candidate.is_absolute() and candidate.as_posix() == legacy_default:
+        return current_default
+    return raw
+
+
+def build_settings(config: dict | None, base_dir: Path, storage_dir: Path) -> PluginSettings:
     config = config or {}
-    db_path = normalize_path(base_dir, str(config.get("db_path") or "data/hot_graph.db"))
+    storage_dir = storage_dir.resolve()
+    db_path_raw = normalize_storage_setting(
+        str(config.get("db_path") or "").strip(),
+        legacy_default=LEGACY_DEFAULT_DB_PATH,
+        current_default=DEFAULT_DB_FILENAME,
+    )
+    render_dir_raw = normalize_storage_setting(
+        str(config.get("render_dir") or "").strip(),
+        legacy_default=LEGACY_DEFAULT_RENDER_DIR,
+        current_default=DEFAULT_RENDER_DIRNAME,
+    )
+    db_path = normalize_path(storage_dir, db_path_raw)
     render_dir = normalize_path(
-        base_dir,
-        str(config.get("render_dir") or "data/hot_graph/render"),
+        storage_dir,
+        render_dir_raw,
     )
     font_path_raw = str(config.get("font_path") or "").strip()
     font_path = normalize_path(base_dir, font_path_raw) if font_path_raw else None
@@ -76,6 +102,28 @@ def build_settings(config: dict | None, base_dir: Path) -> PluginSettings:
         mock_history_path=mock_history_path,
         enable_background_sync=bool(config.get("enable_background_sync", True)),
     )
+
+
+def migrate_legacy_db_if_needed(
+    config: dict | None,
+    base_dir: Path,
+    db_path: Path,
+) -> Path | None:
+    config = config or {}
+    legacy_raw = str(config.get("db_path") or LEGACY_DEFAULT_DB_PATH).strip()
+    legacy_db_path = normalize_path(base_dir, legacy_raw)
+    if legacy_db_path == db_path or db_path.exists() or not legacy_db_path.exists():
+        return None
+
+    ensure_parent(db_path)
+    shutil.copy2(legacy_db_path, db_path)
+    for suffix in ("-wal", "-shm"):
+        legacy_sidecar = Path(f"{legacy_db_path}{suffix}")
+        if legacy_sidecar.exists():
+            target_sidecar = Path(f"{db_path}{suffix}")
+            if not target_sidecar.exists():
+                shutil.copy2(legacy_sidecar, target_sidecar)
+    return legacy_db_path
 
 
 def format_summary(

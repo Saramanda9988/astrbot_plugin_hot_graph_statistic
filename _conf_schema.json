@@ -2,12 +2,14 @@
   "db_path": {
     "type": "string",
     "description": "SQLite 数据库路径",
-    "default": "data/hot_graph.db"
+    "hint": "默认存放在 AstrBot 的 data/plugin_data/astrbot_hot_graph/ 目录下。相对路径也会基于该目录解析。",
+    "default": "hot_graph.db"
   },
   "render_dir": {
     "type": "string",
     "description": "热力图临时图片输出目录",
-    "default": "data/hot_graph/render"
+    "hint": "默认存放在 AstrBot 的 data/plugin_data/astrbot_hot_graph/render/ 目录下。相对路径也会基于该目录解析。",
+    "default": "render"
   },
   "font_path": {
     "type": "string",

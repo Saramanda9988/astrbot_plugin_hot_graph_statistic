@@ -9,6 +9,11 @@ from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
+try:
+    from astrbot.api.star import StarTools
+except ImportError:  # pragma: no cover
+    StarTools = None
+
 _hot_graph = importlib.import_module(".hot_graph", package=__package__)
 _utils = importlib.import_module(".hot_graph.utils", package=__package__)
 
@@ -23,15 +28,24 @@ build_settings = _hot_graph.build_settings
 fetch_group_name = _hot_graph.fetch_group_name
 fetch_qq_avatar = _hot_graph.fetch_qq_avatar
 format_summary = _utils.format_summary
+migrate_legacy_db_if_needed = _utils.migrate_legacy_db_if_needed
+
+PLUGIN_NAME = "astrbot_hot_graph"
 
 
-@register("astrbot_hot_graph", "LunaRain_079", "群热力图统计插件", "0.1.9")
+@register(PLUGIN_NAME, "LunaRain_079", "群热力图统计插件", "0.1.11")
 class HotGraphPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         base_dir = Path(__file__).resolve().parent
         self.config = config
-        self.settings = build_settings(config, base_dir)
+        self.plugin_data_dir = _resolve_plugin_data_dir()
+        self.settings = build_settings(config, base_dir, self.plugin_data_dir)
+        self.migrated_legacy_db_path = migrate_legacy_db_if_needed(
+            config,
+            base_dir,
+            self.settings.db_path,
+        )
         self.repository = HotGraphRepository(self.settings.db_path)
         self.fetcher = build_history_fetcher(self.settings, context)
         self.service = HotGraphService(self.repository, self.fetcher, self.settings)
@@ -54,8 +68,15 @@ class HotGraphPlugin(Star):
 
     async def initialize(self):
         self.repository.initialize()
+        if self.migrated_legacy_db_path is not None:
+            logger.info(
+                "hot graph migrated legacy database: from=%s to=%s",
+                self.migrated_legacy_db_path,
+                self.settings.db_path,
+            )
         logger.info(
-            "hot graph settings: db_path=%s render_dir=%s render_scale=%s timezone=%s history_days=%s page_size=%s history_source_type=%s background_sync=%s",
+            "hot graph settings: plugin_data_dir=%s db_path=%s render_dir=%s render_scale=%s timezone=%s history_days=%s page_size=%s history_source_type=%s background_sync=%s",
+            self.plugin_data_dir,
             self.settings.db_path,
             self.settings.render_dir,
             self.settings.render_scale,
@@ -272,3 +293,20 @@ class HotGraphPlugin(Star):
         if plain_match:
             return plain_match.group(1)
         return None
+
+
+def _resolve_plugin_data_dir() -> Path:
+    if StarTools is not None:
+        try:
+            plugin_data_dir = StarTools.get_data_dir()
+            return Path(plugin_data_dir).resolve()
+        except Exception:
+            pass
+
+    try:
+        from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+
+        plugin_data_dir = Path(get_astrbot_data_path()) / "plugin_data" / PLUGIN_NAME
+        return Path(plugin_data_dir).resolve()
+    except Exception:
+        return (Path.cwd() / "data" / "plugin_data" / PLUGIN_NAME).resolve()
