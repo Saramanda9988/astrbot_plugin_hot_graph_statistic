@@ -22,6 +22,24 @@
 
 > 所有命令仅在群聊场景下可用。
 
+## 本地渲染调试
+
+不启动 AstrBot 时，可以直接用假数据生成一张预览图：
+
+```powershell
+python scripts/debug_render.py
+```
+
+脚本会输出 PNG 路径，默认生成到 `data/debug_render/debug_render.png`。
+
+常用参数示例：
+
+```powershell
+python scripts/debug_render.py --preview
+python scripts/debug_render.py --name "测试用户" --group-name "测试群"
+python scripts/debug_render.py --days 180 --scale 3 -o data/debug_render/my_preview.png
+```
+
 ## 数据持久化
 
 | 路径 | 说明 |
