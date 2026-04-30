@@ -8,7 +8,7 @@ import pytest
 
 from hot_graph.exceptions import UserNotRegisteredError
 from hot_graph.fetcher import MockJsonHistoryFetcher
-from hot_graph.models import PluginSettings, RegisteredUser
+from hot_graph.models import HistoryMessage, PluginSettings, RegisteredUser
 from hot_graph.repository import HotGraphRepository
 from hot_graph.service import HotGraphService
 
@@ -329,5 +329,97 @@ def test_first_sync_starts_from_registration_time(tmp_path):
         assert sync_result.applied is True
         assert sync_result.counts_applied == 2
         assert sync_result.messages_seen == 2
+
+    asyncio.run(scenario())
+
+
+def test_overlapping_sync_for_same_user_does_not_double_count(tmp_path):
+    class _BarrierHistoryFetcher:
+        def __init__(self, messages):
+            self.messages = messages
+            self.entered = 0
+            self.both_entered = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def fetch_messages(self, request):
+            self.entered += 1
+            if self.entered >= 2:
+                self.both_entered.set()
+            await self.release.wait()
+            return [
+                message
+                for message in self.messages
+                if message.platform_id == request.platform_id
+                and message.group_id == request.group_id
+                and message.sender_id == request.user_id
+                and request.start_at < message.occurred_at <= request.end_at
+            ]
+
+    settings = PluginSettings(
+        db_path=tmp_path / "hot_graph.db",
+        render_dir=tmp_path / "render",
+        timezone="Asia/Shanghai",
+        history_days=365,
+        aggregate_interval_seconds=300,
+        history_page_size=50,
+        history_source_type="mock_json",
+        mock_history_path=None,
+        enable_background_sync=False,
+    )
+    repository = HotGraphRepository(settings.db_path)
+    repository.initialize()
+    messages = [
+        HistoryMessage(
+            platform_id="mock-platform",
+            group_id="group-1",
+            sender_id="user-1",
+            sender_name="Alice",
+            message_id=f"m{i}",
+            occurred_at=datetime(2026, 4, 1, i, 0, tzinfo=UTC),
+            content={},
+        )
+        for i in range(1, 7)
+    ]
+    fetcher = _BarrierHistoryFetcher(messages)
+    service = HotGraphService(repository, fetcher, settings)
+
+    async def scenario():
+        registration, _ = await service.register_user(
+            platform_id="mock-platform",
+            group_id="group-1",
+            user_id="user-1",
+            display_name="Alice",
+        )
+        registration = RegisteredUser(
+            id=registration.id,
+            platform_id=registration.platform_id,
+            group_id=registration.group_id,
+            user_id=registration.user_id,
+            display_name=registration.display_name,
+            registered_at=datetime(2026, 4, 1, 0, 0, tzinfo=UTC),
+        )
+
+        sync_now = datetime(2026, 4, 2, 12, 0, tzinfo=UTC)
+        first_task = asyncio.create_task(
+            service.sync_registration(registration=registration, now=sync_now)
+        )
+        second_task = asyncio.create_task(
+            service.sync_registration(registration=registration, now=sync_now)
+        )
+
+        await fetcher.both_entered.wait()
+        fetcher.release.set()
+
+        first_result, second_result = await asyncio.gather(first_task, second_task)
+        assert {first_result.applied, second_result.applied} == {True, False}
+
+        persisted = repository.load_daily_counts(
+            platform_id="mock-platform",
+            group_id="group-1",
+            user_id="user-1",
+            start_date=datetime(2026, 4, 1, 0, 0, tzinfo=UTC).date(),
+            end_date=datetime(2026, 4, 2, 0, 0, tzinfo=UTC).date(),
+        )
+        assert sum(persisted.values()) == 6
 
     asyncio.run(scenario())
